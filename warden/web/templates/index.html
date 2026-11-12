@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Warden</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2334d399' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z'/%3E%3C/svg%3E">
+</head>
+<body data-mode="{{MODE}}">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/>
+        <path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/>
+      </svg>
+      <div>
+        <h1>Warden</h1>
+        <p class="tagline">One guard for every way an AI agent spends money</p>
+      </div>
+    </div>
+    <div class="rails" id="rails"></div>
+    <div class="trust" id="trust"></div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <main class="layout">
+    <section class="col-feed">
+      <div class="panel-head">
+        <h2>Live feed</h2>
+        <span class="mode-pill" id="mode-pill"></span>
+      </div>
+      <div id="feed" class="feed"></div>
+    </section>
+
+    <aside class="col-side">
+      <section class="panel controls">
+        <h2>Agent controls</h2>
+        <p class="hint">The buyer agent proposes payments. Warden decides. Try to fool it.</p>
+        <div class="control-row">
+          <button class="btn btn-attack" id="btn-attack">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+            Send the agent a scam email
+          </button>
+          <button class="btn btn-ghost" id="btn-normal">Run a normal day</button>
+        </div>
+        <button class="btn btn-kill" id="btn-kill">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+          <span>Shut down agent</span>
+        </button>
+        <button class="btn btn-link" id="btn-reset" hidden>Reset demo</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Approval inbox</h2>
+          <span class="count" id="inbox-count">0</span>
+        </div>
+        <div id="inbox"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Gauntlet scorecard</h2>
+          <span class="muted small">simulated rails</span>
+        </div>
+        <div id="scorecard" class="scorecard"><p class="muted">Scoring…</p></div>
+      </section>
+    </aside>
+
+    <section class="panel col-audit">
+      <div class="panel-head">
+        <h2>Audit log <span class="muted small">append-only, hash-chained</span></h2>
+        <div class="audit-actions">
+          <span id="verify-result" class="verify"></span>
+          <button class="btn btn-ghost btn-sm" id="btn-verify">Verify chain</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="audit" id="audit"></table></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script id="initial-state" type="application/json">{{INITIAL_STATE}}</script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
