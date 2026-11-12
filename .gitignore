@@ -1,0 +1,19 @@
+# Secrets
+.env
+*key*.json
+mandate*.json
+airi-cred*.json
+
+# Personal notes, hackathon materials and local output
+SETUP_GUIDE.md
+Dec.txt
+slack_chats/
+*.png
+*.webp
+smoke_report.json
+__pycache__/
+*.pyc
+.venv/
+data/
+secrets/
+node_modules/

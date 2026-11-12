@@ -1,0 +1,13 @@
+{
+  "name": "warden-metal-tools",
+  "private": true,
+  "description": "Pinned metal-agent CLI. x402 fetch/evm 2.31 clash with metal-agent's pinned @x402/core 2.28 and break `pay`, so pin all three to 2.28.",
+  "dependencies": {
+    "@metalntwx/metal-agent": "0.3.3"
+  },
+  "overrides": {
+    "@x402/core": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "@x402/evm": "2.28.0"
+  }
+}
