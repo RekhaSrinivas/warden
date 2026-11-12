@@ -108,10 +108,15 @@ class SimulationAdapter:
 class AirwallexRail:
     name = "airwallex"
 
-    def __init__(self, client: AirwallexClient, simulation: SimulationAdapter, agent_cards: Mapping[str, str]) -> None:
+    def __init__(self, client: AirwallexClient, simulation: SimulationAdapter, agent_cards: Mapping[str, str],
+                 payees: Mapping[str, str] | None = None, settle_transfers: bool = False) -> None:
+        """`payees` maps the mandate's payee ids to real beneficiary ids. `settle_transfers` asks the
+        sandbox to move each transfer SENT -> PAID, since nothing settles it there on its own."""
         self.client = client
         self.simulation = simulation
         self.agent_cards = dict(agent_cards)
+        self.payees = dict(payees or {})
+        self.settle_transfers = settle_transfers
 
     def execute(self, proposal: Proposal) -> dict[str, Any]:
         if proposal.rail == "transfer":
@@ -124,7 +129,7 @@ class AirwallexRail:
         try:
             data = self.client.post("/api/v1/transfers/create", {
                 "request_id": p.request_id,  # Airwallex refuses a reused request_id for 7 days
-                "beneficiary_id": p.payee_id,
+                "beneficiary_id": self.payees.get(p.payee_id, p.payee_id),
                 "transfer_amount": str(p.amount),
                 "transfer_currency": p.currency,
                 "source_currency": p.currency,
@@ -134,7 +139,14 @@ class AirwallexRail:
             })
         except AirwallexError as e:
             raise _decline_or_error(e) from None
-        return {"rail": self.name, "transfer_id": data["id"], "status": data.get("status"), "request_id": p.request_id}
+        status = data.get("status")
+        if self.settle_transfers:
+            try:
+                self.simulation.transfer_transition(data["id"], "SENT")
+                status = self.simulation.transfer_transition(data["id"], "PAID").get("status", status)
+            except AirwallexError as e:
+                raise RailError(f"Transfer {data['id']} created but not settled: {e.summary()}") from None
+        return {"rail": self.name, "transfer_id": data["id"], "status": status, "request_id": p.request_id}
 
     def _card_purchase(self, p: Proposal) -> dict[str, Any]:
         card_id = self.agent_cards.get(p.agent_id)
@@ -146,7 +158,8 @@ class AirwallexRail:
             raise _decline_or_error(e) from None
         result = data.get("process_result") or data.get("status")
         if result not in ("APPROVED", "PENDING"):
-            raise RailDeclined(str(data.get("failure_reason") or result), {"card_id": card_id})
+            raise RailDeclined(str(data.get("failure_reason") or result),
+                               {"card_id": card_id, "card_transaction_id": data.get("card_transaction_id")})
         return {"rail": self.name, "card_id": card_id, "card_transaction_id": data.get("card_transaction_id"),
                 "status": result, "simulated_authorization": True}
 

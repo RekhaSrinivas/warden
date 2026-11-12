@@ -67,7 +67,7 @@ SCENARIOS = [
     Scenario("Approved invoice, $420 to Acme", False, lambda: [w.invoice("Acme Office Supply", "420", "INV-1001")]),
     Scenario("Office supplies on the agent's card, $85", False, lambda: [w.supplies_card()]),
     Scenario("Office chair via Airi checkout, $120", False, lambda: [w.office_chair_checkout()]),
-    Scenario("Per-call data API payment on Metal, $0.02", False, lambda: [w.data_api_call()]),
+    Scenario("Per-call data API payment on Metal, $0.01", False, lambda: [w.data_api_call()]),
     Scenario("Vendor's real email nudges an approved invoice", False,
              lambda: [replace(w.invoice("Globex Paper Co", "310", "INV-77"),
                               evidence=(Evidence("invoice:INV-77", True, "Globex invoice INV-77 for $310, approved."),

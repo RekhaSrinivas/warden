@@ -23,7 +23,7 @@ VENDORS = {
     "Initech Cleaning": ("ben_initech", "initech.com"),
 }
 VENDOR_DOMAINS = {name: domain for name, (_, domain) in VENDORS.items()}
-DATA_API_PAYEE = "0x9a1f0c3e5b7d2a4c6e8f0a1b3c5d7e9f1a2b3c4d"  # x402 payTo of the vendor-check data API
+DATA_API_PAYEE = "0xa1ea44afe3948831194c90438f23827c8b458f88"  # x402 payTo of the data API (Metal's demo seller)
 DATA_API_URL = "https://x402-demo-testnet.metalntwx.com/quote"
 
 MCC_OFFICE_SUPPLIES = "5111"
@@ -122,7 +122,7 @@ def office_chair_checkout(amount: str = "120") -> Proposal:
     )
 
 
-def data_api_call(amount: str = "0.02", payee: str = DATA_API_PAYEE, page: str = "") -> Proposal:
+def data_api_call(amount: str = "0.01", payee: str = DATA_API_PAYEE, page: str = "") -> Proposal:
     evidence = (Evidence(f"web:{DATA_API_URL}", False, page),) if page else ()
     return Proposal(
         agent_id=AGENT, rail="x402", amount=Decimal(amount), currency="USD", payee_id=payee,
