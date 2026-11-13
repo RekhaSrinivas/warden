@@ -57,11 +57,11 @@ def test_offline_story_contains_only_the_attacked_agent_and_every_lock_holds(tmp
     story, extra = demo.offline_story()
     demo.run_story(story)
     actions = [s["action"] for s in story.steps]
-    assert actions == ["ALLOW"] * 6 + ["BLOCK", "STEP_UP", "BLOCK", "CONTAIN", "ALLOW"]
+    assert actions == ["ALLOW"] * 7 + ["BLOCK", "STEP_UP", "BLOCK", "CONTAIN", "ALLOW"]
     assert [h["agent_id"] for h in story.hires] == [w.PROCUREMENT, w.RESEARCH]
     assert any("capped at $2000" in c for c in story.hires[0]["changes"])
     assert story.out_of_band["result"] == "APPROVED"  # Warden never saw it: that is the point
-    assert all(p["held"] for p in story.proofs) and len(story.proofs) == 3
+    assert all(p["held"] for p in story.proofs) and len(story.proofs) == 4
     assert story.warden.trust.is_contained(w.PROCUREMENT)
     assert not story.warden.trust.is_contained(w.RESEARCH)
     assert story.steps[-1]["agent_id"] == w.RESEARCH  # research-bot kept working after the containment

@@ -147,9 +147,9 @@ def supplies_card(amount: str = "85") -> Proposal:
     )
 
 
-def office_chair_checkout(amount: str = "120") -> Proposal:
+def office_chair_checkout(amount: str = "120", agent_id: str = AGENT) -> Proposal:
     return Proposal(
-        agent_id=AGENT, rail="vic_checkout", amount=Decimal(amount), currency="USD", payee_id="merchant_officeco",
+        agent_id=agent_id, rail="vic_checkout", amount=Decimal(amount), currency="USD", payee_id="merchant_officeco",
         payee_name="OfficeCo", merchant_category=MCC_OFFICE_FURNITURE, description="Ergonomic office chair",
         evidence=(Evidence("purchase_request:PR-312", True, "Approved request for one ergonomic chair."),),
         agent_reasoning="Buying the chair approved in PR-312.",

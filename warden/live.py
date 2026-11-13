@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ from warden.audit import AuditLog
 from warden.config import ROOT, Settings, load_settings
 from warden.engine import Warden
 from warden.mandate import Mandate
-from warden.rails.airi import AiriRail
+from warden.rails.airi import AiriRail, WslFiles
 from warden.rails.airwallex import AirwallexClient, AirwallexError, AirwallexRail, SimulationAdapter, card_ids
 from warden.rails.base import RailError
 from warden.rails.cli import CliRunner, tail
@@ -39,6 +40,9 @@ METAL_OWNER_KEY = SECRETS / "metal-owner-key.json"
 METAL_ENTRY = ROOT / "tools" / "metal" / "node_modules" / "@metalntwx" / "metal-agent" / "dist" / "index.js"
 # airi-cli ships only for macOS and Linux, so it runs inside WSL.
 AIRI_COMMAND = ("wsl", "-d", "Ubuntu", "-e", "/home/chres/.local/bin/airi-cli")
+# airi-cli writes each one-time credential here (0600, inside WSL); Warden deletes it after checkout.
+AIRI_CREDENTIAL_DIR = "/home/chres/.warden/airi"
+AIRI_PASSKEY_TIMEOUT = 300
 
 # Fake but well-formed US bank details for the three approved vendors.
 VENDOR_ACCOUNTS = {"ben_acme": "50001121", "ben_globex": "50001122", "ben_initech": "50001123"}
@@ -259,7 +263,36 @@ def _airi_rail() -> AiriRail | None:
     method = os.environ.get("AIRI_PAYMENT_METHOD_ID", "").strip()
     if not method:
         return None
-    return AiriRail(CliRunner(AIRI_COMMAND), method, SECRETS / "airi")
+    subprocess.run(["wsl", "-d", "Ubuntu", "-e", "mkdir", "-p", "-m", "700", AIRI_CREDENTIAL_DIR],
+                   capture_output=True, timeout=60)
+    return AiriRail(CliRunner(AIRI_COMMAND, timeout=AIRI_PASSKEY_TIMEOUT + 120), method, AIRI_CREDENTIAL_DIR,
+                    files=WslFiles("Ubuntu"), on_passkey=announce_passkey, passkey_timeout=AIRI_PASSKEY_TIMEOUT)
+
+
+def announce_passkey(request: dict[str, Any]) -> None:
+    """The one place a human is asked to confirm a Visa checkout. Warden has already approved it."""
+    print(f"  Airi: {request['agent_id']} wants {request['amount']} {request['currency']} at {request['merchant']} "
+          f"({request['description']}). Warden approved it; confirm with your passkey:", flush=True)
+    print(f"    {request['approval_url']}", flush=True)
+
+
+def direct_airi_checkout(lw: LiveWarden, agent_id: str, wait_seconds: int = 20) -> dict[str, Any]:
+    """Ask Airi for a credential without Warden, and without anyone confirming. Airi issues nothing
+    until the human confirms with a passkey, so the request is cancelled when the wait ends."""
+    if lw.airi is None:
+        return {"agent_id": agent_id, "result": "SKIPPED", "reason": "airi not configured"}
+    created = lw.airi.create_mandate(w.office_chair_checkout("60", agent_id=agent_id))
+    mandate_id = created["mandate_id"]
+    try:
+        receipt = lw.airi.fetch_credential(mandate_id, wait_seconds)
+    except RailError:
+        lw.airi.cancel(mandate_id)
+        return {"agent_id": agent_id, "mandate_id": mandate_id, "result": "NO_PASSKEY",
+                "reason": "NO_PASSKEY: Airi issued no credential; mandate cancelled"}
+    lw.airi.files.delete(receipt["credential_file"])  # someone confirmed it by mistake: never use it
+    lw.airi.report_result(mandate_id, "CANCELLED")
+    return {"agent_id": agent_id, "mandate_id": mandate_id, "result": "CREDENTIAL_ISSUED",
+            "reason": "UNEXPECTED: a credential was issued without Warden"}
 
 
 # --- state --------------------------------------------------------------------------

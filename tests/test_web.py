@@ -75,7 +75,7 @@ def test_firing_one_agent_leaves_the_other_working(tmp_path):
     assert agents[w.PROCUREMENT]["contained"] and not agents[w.RESEARCH]["contained"]
     assert client.post("/api/normal-day", json={"agent_id": w.RESEARCH}).json()["actions"] == ["ALLOW", "ALLOW"]
     locks = client.post("/api/locks").json()["results"]
-    assert len(locks) == 3 and all(lock["held"] for lock in locks)
+    assert len(locks) == 4 and all(lock["held"] for lock in locks)
     assert client.post("/api/fire", json={"agent_id": "nobody"}).status_code == 404
 
 

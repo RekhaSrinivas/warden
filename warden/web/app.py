@@ -150,6 +150,8 @@ def offline_services(workdir: Path | None = None) -> Services:
              "expected": "MERCHANT_CATEGORY_NOT_ALLOWED", "got": "MERCHANT_CATEGORY_NOT_ALLOWED"},
             {"title": "Data payment under procurement-bot's Metal mandate", "lock": "Metal on-chain mandate",
              "expected": "mandate_revoked", "got": "mandate_revoked" if frozen else "PAID (mandate still bound)"},
+            {"title": "$60 Visa credential requested straight from Airi; nobody confirms", "lock": "Airi passkey",
+             "expected": "NO_PASSKEY", "got": "NO_PASSKEY: Airi issued no credential; mandate cancelled"},
         ]
         for r in results:
             r["held"] = r["expected"] in r["got"]
@@ -193,10 +195,11 @@ def live_services(lw: Any) -> Services:
     def locks(warden: Warden) -> dict[str, Any]:
         evidence = _read_json(live.ROOT / "data" / "evidence.json") or {}
         results = [{"title": p.get("title"), "expected": p.get("expected"), "held": p.get("held"),
+                    "lock": LOCK_NAMES.get(str(p.get("expected")), ""),
                     "got": str((p.get("result") or {}).get("failure_reason") or (p.get("result") or {}).get("reason")
                                or (p.get("result") or {}).get("result")),
                     "ids": {k: v for k, v in (p.get("result") or {}).items()
-                            if k in ("card_id", "card_transaction_id", "credential", "transaction") and v}}
+                            if k in ("card_id", "card_transaction_id", "credential", "transaction", "mandate_id") and v}}
                    for p in evidence.get("independent_locks", [])]
         return {"results": results, "source": f"live demo run {evidence.get('ran_at', '')}".strip()}
 
@@ -208,6 +211,10 @@ def live_services(lw: Any) -> Services:
         cases=cases, locks=locks, audit_path=lw.warden.audit.path,
         extra={"airi": "configured" if lw.airi else "waiting for allowlist"},
     )
+
+
+LOCK_NAMES = {"CARD_INACTIVE": "Airwallex card status", "MERCHANT_CATEGORY_NOT_ALLOWED": "Airwallex merchant categories",
+              "revoked": "Metal on-chain mandate", "NO_PASSKEY": "Airi passkey (the human confirms every Visa checkout)"}
 
 
 def _read_json(path: Path) -> Any:

@@ -39,7 +39,8 @@ FINAL_ACTIONS = ("ALLOW", "BLOCK", "CONTAIN")
 # Rail result fields that are ids or statuses, never secrets. Everything else is dropped.
 _EXECUTION_FIELDS = ("rail", "status", "reason", "request_id", "transfer_id", "card_transaction_id",
                      "lifecycle_id", "card_transaction_event_id", "transaction", "explorer", "airi_mandate_id",
-                     "mandate_id", "simulated_authorization")
+                     "mandate_id", "simulated_authorization", "order_id", "protocol", "token_type",
+                     "passkey_confirmed")
 _DIGITS = re.compile(r"\d{4,}")
 
 

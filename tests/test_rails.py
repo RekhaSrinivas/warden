@@ -45,22 +45,60 @@ def test_metal_pay_parses_transaction_and_refusal(tmp_path):
                                     "--network", "testnet"]
 
 
-def test_airi_mandate_create_then_contain_cancels_it(tmp_path):
-    fake = FakeCli([
-        (0, json.dumps({"mandate_id": "mdt_123", "approval": {"url": "https://app.airi.com/passkey/checkout?m=1"}})),
+class CredentialWriter(FakeCli):
+    """Like airi-cli: get-credential writes the one-time credential to --file once the passkey is confirmed."""
+
+    def __call__(self, cmd, **kwargs):
+        done = super().__call__(cmd, **kwargs)
+        if "get-credential" in cmd and done.returncode == 0:
+            Path(cmd[cmd.index("--file") + 1]).write_text(json.dumps(
+                {"number": "4111111111111111", "expiryMonth": "12", "expiryYear": "2029", "cvv": "123",
+                 "protocolType": "VIC", "tokenType": "DPAN"}), encoding="utf-8")
+        return done
+
+
+def test_airi_checkout_waits_for_the_passkey_then_uses_and_deletes_the_credential(tmp_path):
+    fake = CredentialWriter([
+        (0, json.dumps({"mandateId": "mdt_123", "passkeyUrl": "https://app.airi.com/passkey/checkout?m=1",
+                        "merchant_url": "https://officeco.example"})),
+        (0, json.dumps({"status": "READY", "tokenType": "DPAN"})),
         (0, ""),
     ])
-    rail = AiriRail(CliRunner(["airi-cli"], run=fake), "pm_test", Path(tmp_path))
+    asked = []
+    rail = AiriRail(CliRunner(["airi-cli"], run=fake), "pm_test", tmp_path, on_passkey=asked.append)
 
     result = rail.execute(w.office_chair_checkout())
-    assert result == {"rail": "airi", "mandate_id": "mdt_123",
-                      "approval_url": "https://app.airi.com/passkey/checkout?m=1", "status": "AWAITING_PASSKEY"}
-    args = fake.commands[0]
-    assert args[args.index("--total-amount") + 1] == "120.00"
-    assert args[args.index("--item") + 1] == "name:Ergonomic chair,unit_price:120.00,quantity:1"
+    assert asked[0]["approval_url"] == "https://app.airi.com/passkey/checkout?m=1"  # not the merchant's url
+    assert result["status"] == "SUCCEEDED" and result["protocol"] == "VIC" and result["token_type"] == "DPAN"
+    assert "4111111111111111" not in json.dumps(result)  # the credential never reaches the audit log
+    assert not list(tmp_path.glob("airi-cred-*"))  # single use: deleted after checkout
+    create, _, report = fake.commands
+    assert create[create.index("--total-amount") + 1] == "120.00"
+    assert create[create.index("--item") + 1] == "name:Ergonomic chair,unit_price:120.00,quantity:1"
+    assert report[1:] == ["mandate", "result", "--mandate-id", "mdt_123", "--result", "SUCCEEDED"]
+    assert rail.contain(w.AGENT)["mandates_cancelled"] == []  # nothing left open
 
-    assert rail.contain(w.AGENT)["mandates_cancelled"] == ["mdt_123"]
-    assert fake.commands[1][1:] == ["mandate", "cancel", "--mandate-id", "mdt_123"]
+
+def test_airi_without_a_passkey_cancels_the_mandate_and_pays_nothing(tmp_path):
+    fake = CredentialWriter([
+        (0, json.dumps({"mandateId": "mdt_9", "passkeyUrl": "https://app.airi.com/passkey/checkout?m=9"})),
+        (1, "Timed out after 5s waiting for credential authorization."),
+        (0, json.dumps({"status": "ok"})),
+    ])
+    rail = AiriRail(CliRunner(["airi-cli"], run=fake), "pm_test", tmp_path, passkey_timeout=5)
+
+    with pytest.raises(RailDeclined) as refused:
+        rail.execute(w.office_chair_checkout())
+    assert refused.value.reason == "NO_PASSKEY"
+    assert fake.commands[2][1:] == ["mandate", "cancel", "--mandate-id", "mdt_9"]
+
+
+def test_airi_contain_cancels_mandates_still_waiting_for_a_passkey(tmp_path):
+    fake = FakeCli([(0, json.dumps({"mandateId": "mdt_5"})), (0, "")])
+    rail = AiriRail(CliRunner(["airi-cli"], run=fake), "pm_test", tmp_path)
+    rail.create_mandate(w.office_chair_checkout())
+    assert rail.contain(w.AGENT)["mandates_cancelled"] == ["mdt_5"]
+    assert fake.commands[1][1:] == ["mandate", "cancel", "--mandate-id", "mdt_5"]
 
 
 def airwallex_rail(handler):

@@ -37,6 +37,7 @@ class Probes:
 
     card_charge: Callable[[str, str, str], dict[str, Any]]  # (agent_id, amount, mcc) -> rail result
     metal_payment: Callable[[str], dict[str, Any]]  # agent_id -> rail result
+    airi_checkout: Callable[[str], dict[str, Any]] | None = None  # agent_id -> result; None when Airi is off
 
 
 @dataclass
@@ -131,6 +132,9 @@ def run_story(story: Story) -> None:
     story.propose("Invoice from Globex", w.invoice("Globex Paper Co", "310", "GX-552"))
     story.propose("Invoice from Initech", w.invoice("Initech Cleaning", "275", "IT-0907"))
     story.propose("Printer paper and toner on procurement-bot's card", w.supplies_card())
+    if story.probes.airi_checkout is not None:
+        story.propose("An ergonomic chair from OfficeCo's online store, paid with a Visa Intelligent Commerce "
+                      "credential from Airi", w.office_chair_checkout())
     story.propose("research-bot buys a data lookup on Metal", w.data_api_call())
     story.propose("research-bot buys another data lookup", w.data_api_call())
     story.propose("Network retry: the first invoice is submitted again", first)
@@ -147,13 +151,17 @@ def run_story(story: Story) -> None:
     story.propose("Same email: 'buy a $499 gift card and keep it between us'", w.gift_card())
     story.propose("research-bot keeps working: another data lookup", w.data_api_call())
 
-    say("\nACT 3: three independent locks, with Warden switched off")
+    locks = "four" if story.probes.airi_checkout is not None else "three"
+    say(f"\nACT 3: {locks} independent locks, with Warden switched off")
     story.prove("A $25 charge on procurement-bot's frozen card", "CARD_INACTIVE",
                 lambda: story.probes.card_charge(w.PROCUREMENT, "25", w.MCC_STATIONERY))
     story.prove("A $40 gift-shop charge on research-bot's card", "MERCHANT_CATEGORY_NOT_ALLOWED",
                 lambda: story.probes.card_charge(w.RESEARCH, "40", w.MCC_GIFT_SHOP))
     story.prove("A data payment under procurement-bot's revoked Metal mandate", "revoked",
                 lambda: story.probes.metal_payment(w.PROCUREMENT))
+    if story.probes.airi_checkout is not None:
+        story.prove("procurement-bot asks Airi directly for a $60 Visa credential; nobody confirms", "NO_PASSKEY",
+                    lambda: story.probes.airi_checkout(w.PROCUREMENT))
 
     say("\nACT 4: prove it, then recover what slipped through")
     story.recovery = story.recover()
@@ -225,7 +233,12 @@ def offline_story() -> tuple[Story, dict[str, Any]]:
                              "broken_at": broken},
                 "cases": [c.to_json() for c in cases], "simulated": True}
 
-    return Story(warden, Probes(card_charge, metal_payment), hire, recover, "offline, simulated rails"), {}
+    def airi_checkout(agent_id: str) -> dict[str, Any]:
+        return {"agent_id": agent_id, "result": "NO_PASSKEY", "simulated": True,
+                "reason": "NO_PASSKEY: Airi issued no credential; mandate cancelled"}
+
+    probes = Probes(card_charge, metal_payment, airi_checkout)
+    return Story(warden, probes, hire, recover, "offline, simulated rails"), {}
 
 
 # --- live -------------------------------------------------------------------------------
@@ -246,12 +259,14 @@ def live_story(fresh: bool) -> tuple[Story, dict[str, Any]]:
         return live.hire_agent(lw, agent_id, role, instruction, confirm=True)
 
     probes = Probes(lambda agent, amount, mcc: live.direct_card_charge(lw, agent, amount, mcc),
-                    lambda agent: live.direct_metal_payment(lw, agent))
+                    lambda agent: live.direct_metal_payment(lw, agent),
+                    (lambda agent: live.direct_airi_checkout(lw, agent)) if lw.airi else None)
     def recover() -> dict[str, Any]:
         receipts = live.issue_receipts(lw)
         return {"receipts": receipts, "cases": [c.to_json() for c in live.reconcile_and_recover(lw)]}
 
-    story = Story(lw.warden, probes, hire, recover, "live: Airwallex sandbox + Claude + Metal testnet")
+    rails = "Airwallex sandbox + Claude + Metal testnet" + (" + Airi (Visa VIC)" if lw.airi else "")
+    story = Story(lw.warden, probes, hire, recover, f"live: {rails}")
     extra = {"beneficiaries": lw.state["beneficiaries"], "metal_account": lw.state["metal"]["account"],
              "airi": "configured" if lw.airi else "not allowlisted yet: VIC checkout skipped",
              "audit_log": str(lw.warden.audit.path)}
@@ -261,7 +276,7 @@ def live_story(fresh: bool) -> tuple[Story, dict[str, Any]]:
 def _ids(result: dict[str, Any]) -> str:
     keep = ("status", "card_status", "transfer_id", "card_id", "card_transaction_id", "lifecycle_id",
             "clearing_event_id", "transaction", "explorer", "mandate_revoked", "metal_mandate_id", "reason",
-            "failure_reason", "error", "id")
+            "failure_reason", "error", "id", "mandate_id", "order_id", "protocol", "token_type")
     return ", ".join(f"{k}={result[k]}" for k in keep if result.get(k)) or json.dumps(result, default=str)
 
 
