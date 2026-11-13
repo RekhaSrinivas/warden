@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -231,8 +232,8 @@ class EvidenceUploader:
         self.url = client.base_url.replace("://api.", "://files.", 1) + "/api/v1/files/upload"
 
     def upload(self, name: str, pdf: bytes) -> str:
-        if not getattr(self.client, "_token", None):
-            self.client.login()
+        if not getattr(self.client, "_token", None) or time.time() > getattr(self.client, "_token_expires", 0):
+            self.client.login()  # a stale token would 401 and look like a missing permission
         # AirwallexClient keeps its bearer token private; the file host is the one call it doesn't wrap.
         resp = self.client.http.post(self.url, files={"file": (name, pdf, "application/pdf")},
                                      headers={"Authorization": f"Bearer {self.client._token}", "User-Agent": "warden/0.1"})
@@ -346,7 +347,8 @@ class Recoverer:
         try:
             if case.dispute_id:  # e.g. a DRAFT created earlier without evidence
                 self.client.post(f"/api/v1/issuing/transaction_disputes/{case.dispute_id}/update",
-                                 {"evidence_files": [case.evidence_file_id], "note": note})
+                                 {"request_id": str(uuid.uuid4()), "evidence_files": [case.evidence_file_id],
+                                  "notes": note})  # update requires a request_id and names the field "notes"
             else:
                 created = self.client.post("/api/v1/issuing/transaction_disputes/create", {
                     "card_transaction_event_id": case.clearing_event_id, "reason": DISPUTE_REASON, "note": note,
@@ -492,7 +494,9 @@ def agent_cards(data_dir: Path = ROOT / "data") -> dict[str, str]:
     if isinstance(agents, dict) and agents:
         out = {}
         for agent_id, value in agents.items():
-            card = value if isinstance(value, str) else (value or {}).get("card_id") if isinstance(value, dict) else None
+            card = value if isinstance(value, str) else None
+            if isinstance(value, dict):  # hire flow keeps the card under provisioning
+                card = value.get("card_id") or (value.get("provisioning") or {}).get("card_id")
             if agent_id and card:
                 out[agent_id] = card
         if out:
@@ -532,6 +536,8 @@ def run(client: AirwallexApi, uploader: Any, cards: Mapping[str, str], receipts:
     cases = reconcile(client, cards, receipts, cases)
     recoverer = Recoverer(client, uploader, summarizer, settlement)
     for case in cases:
+        if file_disputes and case.state is CaseState.UNATTRIBUTED:
+            recoverer.settle(case)  # sandbox: clear it first, so the investigation sees the charge as it now stands
         recoverer.investigate(case, case.agent_id in contained)
         if file_disputes:
             recoverer.settle(case)

@@ -50,3 +50,10 @@ class TrustLedger:
 
     def is_contained(self, agent_id: str) -> bool:
         return self.get(agent_id).contained
+
+    def restore(self, agent_id: str, score: float, strike_times: list[float], contained: bool) -> None:
+        """Rebuild an agent's standing from the audit log, e.g. when a dashboard restarts."""
+        self._agents[agent_id] = AgentTrust(score=score, strike_times=list(strike_times), contained=contained)
+
+    def agents(self) -> list[str]:
+        return list(self._agents)

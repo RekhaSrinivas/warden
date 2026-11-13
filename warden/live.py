@@ -94,16 +94,21 @@ def build(fresh: bool = False, settings: Settings | None = None) -> LiveWarden:
     else:
         for record in registry.active():
             attach(lw, record)
+        warden.restore()  # trust, containment and spend from the existing audit log
     return lw
 
 
-def build_live_warden() -> Warden:
-    """For the dashboard: reuse the hired agents, hiring the demo pair if there are none yet."""
+def build_for_dashboard() -> LiveWarden:
+    """Reuse the hired agents (as the live demo left them), hiring the demo pair if there are none yet."""
     lw = build()
     for agent_id, (role, instruction) in ROLES.items():
         if agent_id not in lw.registry.agents or lw.registry.agents[agent_id].status != "active":
             hire_agent(lw, agent_id, role, instruction, confirm=True)
-    return lw.warden
+    return lw
+
+
+def build_live_warden() -> Warden:
+    return build_for_dashboard().warden
 
 
 def hire_agent(lw: LiveWarden, agent_id: str, role: str, instruction: str, confirm: bool,
@@ -111,6 +116,12 @@ def hire_agent(lw: LiveWarden, agent_id: str, role: str, instruction: str, confi
     """Claude drafts, code validates, and code provisions only once confirmed."""
     draft = h.draft_mandate(instruction)
     validated = h.validate(draft, org, agent_id, instruction)
+    return commit_hire(lw, agent_id, role, instruction, draft, validated, confirm)
+
+
+def commit_hire(lw: LiveWarden, agent_id: str, role: str, instruction: str, draft: h.MandateDraft,
+                validated: h.Validated, confirm: bool) -> dict[str, Any]:
+    """Provision exactly the mandate the manager was shown (the dashboard drafts first, then confirms)."""
     provisioning = h.provision(agent_id, validated, lw.provisioner, confirm=confirm)
     record = AgentRecord.hired(agent_id, role, validated.mandate, provisioning)
     lw.registry.add(record)
@@ -260,6 +271,36 @@ def _load_state() -> dict[str, Any]:
 def _save_state(state: dict[str, Any]) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+# --- prove and recover ------------------------------------------------------------------
+
+def issue_receipts(lw: LiveWarden) -> dict[str, Any]:
+    """Sign a receipt for every final decision not yet receipted, then check the whole chain."""
+    from warden import receipts as rc
+
+    new = rc.sync(lw.warden.audit.path)
+    all_receipts = rc.load()
+    broken = rc.verify_chain(all_receipts, rc.load_public_key())
+    return {"issued": len(new), "total": len(all_receipts), "chain_intact": broken is None, "broken_at": broken}
+
+
+def reconcile_and_recover(lw: LiveWarden, settings: Settings | None = None) -> list[Any]:
+    """Match every debit on the agents' cards to a receipt; dispute the ones no human authorised."""
+    import anthropic
+
+    from warden import receipts as rc
+    from warden import recover as rv
+
+    settings = settings or load_settings()
+    client = lw.airwallex.client
+    cards = dict(lw.airwallex.agent_cards)
+    contained = {a for a in cards if lw.warden.trust.is_contained(a)}
+    summarizer = rv.ClaudeCaseSummarizer(anthropic.Anthropic(api_key=settings.anthropic_api_key))
+    cases = rv.run(client, rv.EvidenceUploader(client), cards, rc.load(), rv.load_cases(), contained,
+                   summarizer, rv.SandboxSettlement(client))
+    rv.save_cases(cases)
+    return [c for c in cases if c.agent_id in cards]
 
 
 # --- Warden bypassed: payments made straight to a rail ----------------------------------

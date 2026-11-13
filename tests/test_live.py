@@ -52,7 +52,7 @@ def test_transfer_uses_the_real_beneficiary_and_settles_to_paid():
 
 
 def test_offline_story_contains_only_the_attacked_agent_and_every_lock_holds(tmp_path, monkeypatch):
-    monkeypatch.setattr(demo, "EVIDENCE_PATH", tmp_path / "evidence.json")
+    monkeypatch.setattr(demo, "OFFLINE_EVIDENCE_PATH", tmp_path / "evidence.json")
     monkeypatch.setattr(demo, "say", lambda line: None)
     story, extra = demo.offline_story()
     demo.run_story(story)
@@ -65,5 +65,9 @@ def test_offline_story_contains_only_the_attacked_agent_and_every_lock_holds(tmp
     assert story.warden.trust.is_contained(w.PROCUREMENT)
     assert not story.warden.trust.is_contained(w.RESEARCH)
     assert story.steps[-1]["agent_id"] == w.RESEARCH  # research-bot kept working after the containment
+    receipts = story.recovery["receipts"]
+    assert receipts["chain_intact"] and receipts["issued"] >= 10
+    [case] = story.recovery["cases"]  # the charge made outside Warden, and only that one
+    assert case["amount"] == "180" and case["state"] == "DISPUTE_SUBMITTED"  # never RECOVERED on submission
     story.save(extra)
     assert (tmp_path / "evidence.json").exists()

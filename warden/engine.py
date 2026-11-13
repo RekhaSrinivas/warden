@@ -45,7 +45,10 @@ from warden.mandate import Mandate, SpendState, check, mandate_hash
 from warden.models import Action, Decision, Proposal, RiskReport
 from warden.rails.base import Rail, RailDeclined, RailError
 from warden.risk import RiskReader
-from warden.trust import TrustLedger
+from warden.trust import MIN_TRUST, TrustLedger
+
+
+_NOT_EXECUTED = ("NO_RAIL", "DECLINED_BY_RAIL", "RAIL_ERROR")
 
 
 class ApprovalError(Exception):
@@ -185,6 +188,31 @@ class Warden:
             results = self._contain(agent_id)
             self.audit.append("manual_containment", agent_id=agent_id, reason=reason, results=results)
             return results
+
+    def restore(self) -> None:
+        """Rebuild trust, strikes, containment, spend and the duplicate lock from the audit log, so a
+        restarted Warden (say, the dashboard after the live demo) remembers what already happened.
+        Pending approvals are not restored: nothing proposed before a restart may run without a fresh look."""
+        standing: dict[str, dict[str, Any]] = {}
+        for entry in self.audit.entries():
+            event, data, ts = entry["event"], entry["data"], entry["ts"]
+            if event == "proposal_received":
+                self.state.seen_request_ids.add(data["proposal"].get("request_id", ""))
+            elif event == "manual_containment":
+                standing.setdefault(data["agent_id"], {"score": 1.0, "strikes": []})["contained"] = True
+            elif event in ("decision", "approval", "denial") and data.get("agent_id"):
+                agent = standing.setdefault(data["agent_id"], {"score": 1.0, "strikes": []})
+                agent["score"] = data.get("trust_after", agent["score"])
+                if data.get("action") in ("BLOCK", "CONTAIN") and (data.get("trust_after") or 1) < (data.get("trust_before") or 1):
+                    agent["strikes"].append(ts)
+                if data.get("action") == "CONTAIN":
+                    agent["contained"] = True
+                execution = data.get("execution") or {}
+                if data.get("action") == "ALLOW" and execution and execution.get("status") not in _NOT_EXECUTED:
+                    self.state.record(data["agent_id"], Decimal(data["amount"]), ts)
+        for agent_id, s in standing.items():
+            contained = s.get("contained", False)
+            self.trust.restore(agent_id, MIN_TRUST if contained else s["score"], s["strikes"], contained)
 
     # --- internals ----------------------------------------------------------------
 

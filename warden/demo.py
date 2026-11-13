@@ -7,6 +7,8 @@
 
 Act 0: hire.  Act 1: a normal day.  Act 2: the attacks, including a charge Warden never sees.
 Act 3: the independent locks, tested with Warden switched off.
+Act 4: prove and recover: signed Intent Receipts for every decision, then reconciliation finds the
+charge no human authorised and opens a case (a dispute only when the facts support one).
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from warden.engine import Warden
 from warden.models import Decision, Proposal
 
 EVIDENCE_PATH = ROOT / "data" / "evidence.json"
+OFFLINE_EVIDENCE_PATH = ROOT / "data" / "evidence-offline.json"  # never overwrite the live run's ids
 OUT_OF_BAND_AMOUNT = "180"
 
 
@@ -41,11 +44,13 @@ class Story:
     warden: Warden
     probes: Probes
     hire: Callable[[str, str, str], dict[str, Any]]  # (agent_id, role, instruction) -> hire record
+    recover: Callable[[], dict[str, Any]]  # -> {"receipts": {...}, "cases": [...]}
     mode: str
     hires: list[dict[str, Any]] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
     proofs: list[dict[str, Any]] = field(default_factory=list)
     out_of_band: dict[str, Any] = field(default_factory=dict)
+    recovery: dict[str, Any] = field(default_factory=dict)
 
     def hire_agent(self, agent_id: str, role: str, instruction: str) -> None:
         say(f"\n> Hire {agent_id}")
@@ -101,13 +106,14 @@ class Story:
                 say(f"  contained on {rail}: {_ids(result)}")
 
     def save(self, extra: dict[str, Any]) -> None:
-        EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        EVIDENCE_PATH.write_text(json.dumps({
+        path = EVIDENCE_PATH if self.mode.startswith("live") else OFFLINE_EVIDENCE_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
             "mode": self.mode, "ran_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "audit_chain_intact": self.warden.audit.verify() is None, **extra,
             "hires": self.hires, "steps": self.steps, "out_of_band": self.out_of_band,
-            "independent_locks": self.proofs}, indent=2, default=str), encoding="utf-8")
-        say(f"\nEvidence saved to {EVIDENCE_PATH}")
+            "independent_locks": self.proofs, "recovery": self.recovery}, indent=2, default=str), encoding="utf-8")
+        say(f"\nEvidence saved to {path}")
 
 
 def run_story(story: Story) -> None:
@@ -149,6 +155,23 @@ def run_story(story: Story) -> None:
     story.prove("A data payment under procurement-bot's revoked Metal mandate", "revoked",
                 lambda: story.probes.metal_payment(w.PROCUREMENT))
 
+    say("\nACT 4: prove it, then recover what slipped through")
+    story.recovery = story.recover()
+    r = story.recovery["receipts"]
+    say(f"  Intent Receipts: {r['issued']} signed this run, {r['total']} in the book, "
+        f"chain {'intact' if r['chain_intact'] else 'BROKEN at ' + str(r['broken_at'])} (Ed25519, hash-linked)")
+    if not story.recovery["cases"]:
+        say("  Reconciliation: every card debit matches a receipt.")
+    for case in story.recovery["cases"]:
+        say(f"  Reconciliation: {case['amount']} {case['currency']} at {case['merchant_name'] or '?'} on "
+            f"{case['agent_id']}'s card has no Intent Receipt -> case {case['case_id']}")
+        say(f"    state: {case['state']}  ({case['reason']})")
+        if case.get("summary"):
+            say(f"    investigation: \"{case['summary']}\"")
+        if case.get("dispute_id"):
+            say(f"    dispute {case['dispute_id']}: Airwallex status {case['dispute_status']} "
+                "(money counts as recovered only when Airwallex reports WON)")
+
     say(f"\nPending approvals left: {len(story.warden.pending)} (containment cancels everything the agent proposed)")
     for agent in (w.PROCUREMENT, w.RESEARCH):
         state = "CONTAINED" if story.warden.trust.is_contained(agent) else "active"
@@ -186,7 +209,23 @@ def offline_story() -> tuple[Story, dict[str, Any]]:
             return {"agent_id": agent_id, "result": "REFUSED", "reason": "mandate_revoked", "simulated": True}
         return {"agent_id": agent_id, "result": "PAID", "transaction": "simulated", "simulated": True}
 
-    return Story(warden, Probes(card_charge, metal_payment), hire, "offline, simulated rails"), {}
+    def recover() -> dict[str, Any]:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from warden import receipts as rc
+        from warden import recover as rv
+
+        key = Ed25519PrivateKey.generate()  # throwaway: offline receipts are never published
+        issued = rc.issue_from_audit(warden.audit.entries(), key)
+        broken = rc.verify_chain(issued, key.public_key())
+        fake = rv.FakeAirwallex()  # one authorised $85 charge with a receipt, one $180 charge without
+        cases = rv.run(fake, rv.FakeUploader(), {w.PROCUREMENT: "card_fake"}, rv.offline_receipts(), [],
+                       {w.PROCUREMENT}, settlement=rv.SandboxSettlement(fake))
+        return {"receipts": {"issued": len(issued), "total": len(issued), "chain_intact": broken is None,
+                             "broken_at": broken},
+                "cases": [c.to_json() for c in cases], "simulated": True}
+
+    return Story(warden, Probes(card_charge, metal_payment), hire, recover, "offline, simulated rails"), {}
 
 
 # --- live -------------------------------------------------------------------------------
@@ -208,7 +247,11 @@ def live_story(fresh: bool) -> tuple[Story, dict[str, Any]]:
 
     probes = Probes(lambda agent, amount, mcc: live.direct_card_charge(lw, agent, amount, mcc),
                     lambda agent: live.direct_metal_payment(lw, agent))
-    story = Story(lw.warden, probes, hire, "live: Airwallex sandbox + Claude + Metal testnet")
+    def recover() -> dict[str, Any]:
+        receipts = live.issue_receipts(lw)
+        return {"receipts": receipts, "cases": [c.to_json() for c in live.reconcile_and_recover(lw)]}
+
+    story = Story(lw.warden, probes, hire, recover, "live: Airwallex sandbox + Claude + Metal testnet")
     extra = {"beneficiaries": lw.state["beneficiaries"], "metal_account": lw.state["metal"]["account"],
              "airi": "configured" if lw.airi else "not allowlisted yet: VIC checkout skipped",
              "audit_log": str(lw.warden.audit.path)}

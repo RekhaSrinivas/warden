@@ -286,10 +286,14 @@ def load(path: Path = RECEIPTS_PATH) -> list[Receipt]:
 
 def sync(audit_path: Path, receipts_path: Path = RECEIPTS_PATH, key: Ed25519PrivateKey | None = None) -> list[Receipt]:
     """Issue receipts for every final audit outcome not yet receipted and append them. Returns the new ones."""
-    key = key or load_or_create_signing_key()
-    existing = load(receipts_path)
     entries = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines() if line] \
         if audit_path.exists() else []
+    return sync_entries(entries, receipts_path, key or load_or_create_signing_key())
+
+
+def sync_entries(entries: list[dict[str, Any]], receipts_path: Path, key: Ed25519PrivateKey) -> list[Receipt]:
+    """Like sync(), for an audit log held in memory (the offline dashboard)."""
+    existing = load(receipts_path)
     issued_for = {r.body.get("audit", {}).get("entry_hash") for r in existing}
     prev = existing[-1].receipt_hash if existing else GENESIS
     new = issue_from_audit(entries, key, prev, issued_for)

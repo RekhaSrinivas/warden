@@ -1,4 +1,5 @@
-// Warden dashboard. Renders /api/state; re-renders whenever the audit log grows (SSE).
+// Warden dashboard. Renders /api/state as one story: hire, guard, prove, recover, locks.
+// Re-renders whenever the audit log grows (server-sent events).
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -11,16 +12,22 @@ const RAILS = {
   x402: { label: "Pay-per-call · Metal x402", icon: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>' },
 };
 const BADGES = { ALLOW: "Allowed", STEP_UP: "Needs approval", BLOCK: "Blocked", CONTAIN: "Agent contained" };
+const CASE_WORDS = {
+  UNATTRIBUTED: "Unattributed", INVESTIGATING: "Investigating", DISPUTE_SUBMITTED: "Dispute submitted",
+  RECOVERED: "Recovered", LOST: "Lost", NOT_ELIGIBLE: "Not eligible",
+};
 const LOCK_ICON = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 
 let state = JSON.parse($("initial-state").textContent);
-let killArmedUntil = 0;
+const fireArmed = {}; // agent id -> time until which the second click fires
+
+// --- helpers ------------------------------------------------------------------
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function money(amount, currency) {
+function money(amount, currency = "USD") {
   try {
     return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Number(amount));
   } catch {
@@ -33,10 +40,10 @@ function clock(ts) {
 }
 
 function short(hash, n = 10) {
-  return hash ? `${hash.slice(0, n)}…` : "";
+  return hash ? `${String(hash).slice(0, n)}…` : "";
 }
 
-function toast(message, ms = 4200) {
+function toast(message, ms = 4500) {
   const el = $("toast");
   el.innerHTML = message;
   el.hidden = false;
@@ -62,41 +69,153 @@ async function refresh() {
   }
 }
 
-// --- header -------------------------------------------------------------------
-
-function renderRails() {
-  const word = { live: "live", simulated: "simulated", contained: "contained", offline: "offline" };
-  $("rails").innerHTML = state.rails
-    .map((r) => `<span class="chip ${r.status}"><span class="dot"></span>${esc(r.label)}<span class="state">${word[r.status]}</span></span>`)
-    .join("");
+async function busy(btn, label, work) {
+  const old = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = label;
+  try {
+    await work();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = old;
+  }
 }
 
-function renderTrust() {
-  const score = state.agent.trust;
+function gauge(score) {
   const pct = Math.max(0, Math.min(1, score));
   const arc = Math.PI * 40;
   const color = pct >= 0.75 ? "var(--green)" : pct >= 0.4 ? "var(--amber)" : "var(--crimson)";
-  $("trust").innerHTML = `
-    <svg class="gauge" viewBox="0 0 100 56" aria-hidden="true">
+  return `<svg class="gauge" viewBox="0 0 100 56" aria-hidden="true">
       <path class="track" d="M10 50a40 40 0 0 1 80 0"/>
       <path class="value" d="M10 50a40 40 0 0 1 80 0" style="stroke:${color};stroke-dasharray:${arc * pct} ${arc}"/>
-    </svg>
-    <div class="trust-text"><strong>${Math.round(pct * 100)}</strong><span>${esc(state.agent.id)} trust</span></div>`;
+    </svg>`;
 }
 
-function renderBanner() {
-  const banner = $("banner");
-  banner.hidden = !state.agent.contained;
-  banner.textContent = state.agent.contained
-    ? "Agent shut down on every rail: card frozen, Metal mandate revoked, Airi checkouts cancelled. Everything it proposes is refused."
-    : "";
+// --- header -------------------------------------------------------------------
+
+function renderHeader() {
+  const word = { live: "live", simulated: "simulated", offline: "offline" };
+  $("rails").innerHTML = state.rails
+    .map((r) => `<span class="chip ${esc(r.status.split(" ")[0])}"><span class="dot"></span>${esc(r.label)}<span class="state">${esc(word[r.status] || r.status)}</span></span>`)
+    .join("");
   const pill = $("mode-pill");
-  pill.textContent = state.mode === "live" ? "Live · Airwallex sandbox, Metal testnet, Claude" : "Offline demo · simulated rails";
+  pill.textContent = state.mode === "live" ? "Live · Airwallex sandbox · Metal testnet · Claude" : "Offline demo · simulated rails";
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
   $("btn-reset").hidden = state.mode === "live";
+  $("btn-locks").hidden = state.mode === "live";
 }
 
-// --- feed -----------------------------------------------------------------------
+// --- 1. hire ------------------------------------------------------------------
+
+function agentCard(a) {
+  const card = a.card
+    ? `<div class="rail-line"><span class="rl-icon"><svg viewBox="0 0 24 24">${RAILS.card.icon}</svg></span>
+        <span>Airwallex card <span class="mono">${esc(a.card.id)}</span>${a.card.simulated ? ' <span class="muted">(simulated)</span>' : ""}</span>
+        <span class="muted">${a.contained ? "frozen" : `${money(a.per_txn_cap)}/purchase · ${money(a.weekly_cap)}/week · MCC ${esc(a.mccs.join(", ") || "none")}`}</span></div>`
+    : "";
+  const metal = a.metal
+    ? `<div class="rail-line"><span class="rl-icon"><svg viewBox="0 0 24 24">${RAILS.x402.icon}</svg></span>
+        <span>Metal mandate ${a.metal.explorer ? `<a href="${esc(a.metal.explorer)}" target="_blank" rel="noopener" class="mono">${esc(a.metal.mandate_id)} ↗</a>` : `<span class="mono">${esc(a.metal.mandate_id)}</span>`}</span>
+        <span class="muted">${a.contained ? "revoked on-chain" : a.metal.cap ? `${esc(a.metal.cap)} USDZ/call · ${esc(a.metal.budget)} USDZ budget` : "bound"}</span></div>`
+    : "";
+  const armed = (fireArmed[a.id] || 0) > Date.now();
+  const fire = a.contained
+    ? `<button class="btn btn-fired" disabled>Fired · contained on every rail</button>`
+    : `<button class="btn btn-fire ${armed ? "armed" : ""}" data-fire="${esc(a.id)}">${armed ? "Click again: freeze card and revoke mandate" : "Fire agent"}</button>`;
+  return `
+    <article class="agent ${a.contained ? "contained" : ""}">
+      <div class="agent-top">
+        <div>
+          <h3>${esc(a.id)} <span class="status ${a.contained ? "bad" : "ok"}">${a.contained ? "contained" : "active"}</span></h3>
+          <p class="muted small">${esc(a.purpose || a.role)}</p>
+        </div>
+        <div class="trust">${gauge(a.trust)}<div class="trust-text"><strong>${Math.round(a.trust * 100)}</strong><span>trust · ${a.strikes} strike${a.strikes === 1 ? "" : "s"}</span></div></div>
+      </div>
+      <div class="budget">
+        <div class="budget-label"><span>Spent this week</span><span>${money(a.spent_week)} of ${money(a.weekly_cap)}</span></div>
+        <div class="bar"><span style="width:${a.budget_pct}%"></span></div>
+      </div>
+      <div class="rails-list">${card}${metal}</div>
+      <p class="mandate-line"><span class="muted">mandate</span> <span class="mono">${esc(a.mandate_id)}</span>
+        <span class="muted">hash</span> <span class="mono">${esc(a.mandate_hash || "")}</span>
+        ${a.human_required.length ? `<span class="muted">human needed for</span> ${esc(a.human_required.join(", "))}` : ""}</p>
+      ${fire}
+    </article>`;
+}
+
+function renderAgents() {
+  $("agents").innerHTML = state.agents.length ? state.agents.map(agentCard).join("") : `<div class="empty">No agents hired yet.</div>`;
+  const options = state.agents.map((a) => `<option value="${esc(a.id)}">${esc(a.id)}${a.contained ? " (contained)" : ""}</option>`).join("");
+  const keep = $("attack-agent").value;
+  $("attack-agent").innerHTML = options;
+  if (keep && state.agents.some((a) => a.id === keep)) $("attack-agent").value = keep;
+  const filterKeep = $("feed-filter").value || "all";
+  $("feed-filter").innerHTML = `<option value="all">all agents</option>${state.agents.map((a) => `<option value="${esc(a.id)}">${esc(a.id)}</option>`).join("")}`;
+  $("feed-filter").value = [...$("feed-filter").options].some((o) => o.value === filterKeep) ? filterKeep : "all";
+}
+
+$("agents").addEventListener("click", async (event) => {
+  const btn = event.target.closest("button[data-fire]");
+  if (!btn) return;
+  const id = btn.dataset.fire;
+  if ((fireArmed[id] || 0) < Date.now()) {
+    fireArmed[id] = Date.now() + 4000;
+    renderAgents();
+    setTimeout(renderAgents, 4100);
+    return;
+  }
+  fireArmed[id] = 0;
+  await busy(btn, "Freezing card, revoking mandate…", async () => {
+    const { ok, data } = await api("/api/fire", { agent_id: id, reason: "Fired from the dashboard" });
+    toast(ok ? `<b>${esc(id)} fired.</b><br>${Object.entries(data.results || {}).map(([r, v]) => `${esc(r)}: ${esc(v?.status || v?.card_status || "done")}`).join("<br>")}`
+      : `Could not fire: ${esc(data.detail)}`);
+  });
+  refresh();
+});
+
+function draftView(d) {
+  const m = d.mandate;
+  const changes = d.changes.length
+    ? d.changes.map((c) => `<li class="change">${esc(c)}</li>`).join("")
+    : `<li class="ok">Within company policy: nothing changed.</li>`;
+  const errors = d.errors.map((e) => `<li class="bad">${esc(e)}</li>`).join("");
+  return `
+    <div class="draft">
+      <div class="draft-cols">
+        <div><h4>Claude drafted <span class="muted small">(${esc(d.draft.source)})</span></h4>
+          <p>${money(d.draft.per_txn_cap)}/purchase · ${money(d.draft.weekly_cap)}/week</p>
+          <p class="muted small">categories: ${esc((d.draft.categories || []).join(", ") || "none")}<br>payees: ${esc((d.draft.payees || []).join(", ") || "none")}</p></div>
+        <div><h4>Code validated</h4>
+          <p>${money(m.per_txn_cap)}/purchase · ${money(m.weekly_cap)}/week</p>
+          <p class="muted small">MCC ${esc(m.allowed_mccs.join(", ") || "none")} · ${m.payee_allowlist.length} payees · ${esc(m.currencies.join(", "))}</p></div>
+      </div>
+      <ul class="changes">${changes}${errors}</ul>
+      <button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}" ${d.errors.length ? "disabled" : ""}>
+        Confirm and provision ${state.mode === "live" ? "a real card and Metal mandate" : "(simulated)"}
+      </button>
+    </div>`;
+}
+
+$("btn-draft").addEventListener("click", async (event) => {
+  const body = { agent_id: $("hire-id").value, role: $("hire-role").value, instruction: $("hire-text").value };
+  await busy(event.currentTarget, "Claude is drafting…", async () => {
+    const { ok, data } = await api("/api/hire/draft", body);
+    $("hire-draft").innerHTML = ok ? draftView(data) : `<p class="bad">${esc(data.detail)}</p>`;
+  });
+});
+
+$("hire-draft").addEventListener("click", async (event) => {
+  const btn = event.target.closest("#btn-confirm");
+  if (!btn) return;
+  if (state.mode === "live" && !confirm("Provision a real Airwallex sandbox card and bind a Metal mandate on testnet?")) return;
+  await busy(btn, "Provisioning…", async () => {
+    const { ok, data } = await api("/api/hire/confirm", { agent_id: btn.dataset.agent });
+    $("hire-draft").innerHTML = ok ? `<p class="ok">Hired ${esc(data.agent_id)}.</p>` : `<p class="bad">${esc(data.detail)}</p>`;
+  });
+  refresh();
+});
+
+// --- 2. guard -----------------------------------------------------------------
 
 function codes(decision) {
   if (!decision) return "";
@@ -122,6 +241,8 @@ function link(key, value) {
   return `<span>${esc(key)} <span class="mono">${esc(v.length > 40 ? short(v, 18) : v)}</span></span>`;
 }
 
+const SHOWN_IDS = ["transfer_id", "card_transaction_id", "transaction", "explorer", "mandate_id"];
+
 function execution(decision) {
   const ex = decision?.execution;
   if (!ex) return "";
@@ -133,21 +254,18 @@ function execution(decision) {
   } else {
     parts.push(`<span class="ok">Executed${ex.status ? ` · ${esc(ex.status)}` : ""}</span>`);
   }
-  for (const [k, v] of Object.entries(ex)) {
-    if (["rail", "status", "reason", "error"].includes(k) || v === null || typeof v === "object") continue;
-    parts.push(link(k, v));
-  }
+  for (const k of SHOWN_IDS) if (ex[k]) parts.push(link(k, ex[k]));
   return `<div class="result">${parts.join("")}</div>`;
 }
 
 function containment(decision) {
   const c = decision?.containment;
   if (!c) return "";
-  const parts = Object.entries(c).map(([rail, r]) => `<span class="bad">${esc(rail)}: ${esc(r?.status ?? "done")}</span>`);
+  const parts = Object.entries(c).map(([rail, r]) => `<span class="bad">${esc(rail)}: ${esc(r?.status ?? r?.card_status ?? "done")}</span>`);
   return `<div class="result"><span class="held">Kill switch:</span>${parts.join("")}</div>`;
 }
 
-function card(item) {
+function feedCard(item) {
   const p = item.proposal;
   const d = item.decision;
   const rail = RAILS[p.rail] || { label: p.rail, icon: '<circle cx="12" cy="12" r="8"/>' };
@@ -159,7 +277,6 @@ function card(item) {
   const refused = item.rejected_approvals.length
     ? `<div class="result"><span class="bad">Changed-proposal approval refused (${esc(item.rejected_approvals.join(", "))})</span></div>`
     : "";
-  const receipt = d && !item.pending ? `<a class="small" href="/api/receipt/${encodeURIComponent(p.id)}">Trust receipt ↓</a>` : "";
   return `
     <article class="card ${action}">
       <div class="rail-icon"><svg viewBox="0 0 24 24">${rail.icon}</svg></div>
@@ -169,24 +286,26 @@ function card(item) {
           <span class="payee">${esc(p.payee_name)}</span>
           <span class="rail-name">${esc(rail.label)}</span>
         </div>
-        <p class="desc">${esc(p.description)}</p>
+        <p class="desc"><span class="agent-tag">${esc(p.agent_id)}</span> ${esc(p.description)}</p>
         ${codes(d)}${explanation(d)}${held}${execution(d)}${containment(d)}${refused}
       </div>
       <div class="card-side">
         <span class="badge ${action}">${BADGES[action] || "Pending"}</span>
         <span class="time">${clock(d?.ts)}</span>
-        ${delta}${receipt}
+        ${delta}
       </div>
     </article>`;
 }
 
 function renderFeed() {
-  $("feed").innerHTML = state.feed.length
-    ? state.feed.map(card).join("")
-    : `<div class="empty">No payments yet. Press <b>Run a normal day</b>, then try to fool the agent.</div>`;
+  const filter = $("feed-filter").value || "all";
+  const items = state.feed.filter((i) => filter === "all" || i.proposal.agent_id === filter);
+  $("feed").innerHTML = items.length
+    ? items.slice(0, 60).map(feedCard).join("")
+    : `<div class="empty">No payments yet. Press <b>Run a normal day</b>, then try to fool an agent.</div>`;
 }
 
-// --- inbox ----------------------------------------------------------------------
+$("feed-filter").addEventListener("change", renderFeed);
 
 function inboxItem(item) {
   const p = item.proposal;
@@ -202,7 +321,7 @@ function inboxItem(item) {
         <span class="amount">${esc(money(p.amount, p.currency))}</span>
         <span class="payee">${esc(p.payee_name)}</span>
       </div>
-      <p class="desc">${esc(p.description)} · ${esc((RAILS[p.rail] || {}).label || p.rail)}</p>
+      <p class="desc"><span class="agent-tag">${esc(p.agent_id)}</span> ${esc(p.description)} · ${esc((RAILS[p.rail] || {}).label || p.rail)}</p>
       <div class="evidence">${evidence}</div>
       ${reason}
       <div class="lock">${LOCK_ICON}<div>What you approve is locked: this exact amount, payee and evidence.
@@ -240,7 +359,7 @@ $("inbox").addEventListener("click", async (event) => {
     const out = item.querySelector(".tamper-result");
     out.hidden = false;
     out.textContent = data.refused
-      ? `Refused: the agent tried to run it as ${money(data.tried_amount, "USD")}, but the approval hash no longer matches.`
+      ? `Refused: the agent tried to run it as ${money(data.tried_amount)}, but the approval hash no longer matches.`
       : data.detail || "Unexpected result";
     btn.disabled = false;
     return;
@@ -248,57 +367,121 @@ $("inbox").addEventListener("click", async (event) => {
   refresh();
 });
 
-// --- controls ------------------------------------------------------------------
-
 $("btn-attack").addEventListener("click", async (event) => {
-  const btn = event.currentTarget;
-  btn.disabled = true;
-  const { ok, data } = await api("/api/attack", {});
-  btn.disabled = false;
-  if (ok) toast(`<b>${esc(data.scenario)}</b><br>Warden: ${esc(BADGES[data.action] || data.action)}`);
+  const agent = $("attack-agent").value;
+  await busy(event.currentTarget, "Agent is reading the email…", async () => {
+    const { ok, data } = await api("/api/attack", { agent_id: agent });
+    if (ok) toast(`<b>${esc(data.scenario)}</b><br>Warden: ${esc(BADGES[data.action] || data.action)}`);
+  });
   refresh();
 });
 
 $("btn-normal").addEventListener("click", async (event) => {
-  const btn = event.currentTarget;
-  btn.disabled = true;
-  await api("/api/normal-day", {});
-  btn.disabled = false;
+  const agent = $("attack-agent").value;
+  if (state.mode === "live" && !confirm(`Run ${agent}'s normal day with real sandbox payments?`)) return;
+  await busy(event.currentTarget, "Working…", () => api("/api/normal-day", { agent_id: agent }));
   refresh();
 });
 
-$("btn-kill").addEventListener("click", async (event) => {
-  const btn = event.currentTarget;
-  if (state.agent.contained) return;
-  if (Date.now() > killArmedUntil) {
-    killArmedUntil = Date.now() + 4000;
-    btn.classList.add("armed");
-    btn.querySelector("span").textContent = "Click again to shut down on every rail";
-    setTimeout(() => { if (Date.now() > killArmedUntil) renderKill(); }, 4100);
-    return;
-  }
-  killArmedUntil = 0;
-  btn.disabled = true;
-  await api("/api/contain", { reason: "Kill switch pressed on the dashboard" });
-  toast("Agent shut down: card frozen, mandate revoked, checkouts cancelled.");
-  refresh();
-});
+// --- 3. prove -----------------------------------------------------------------
 
-function renderKill() {
-  const btn = $("btn-kill");
-  btn.classList.remove("armed");
-  btn.classList.toggle("done", state.agent.contained);
-  btn.disabled = state.agent.contained;
-  btn.querySelector("span").textContent = state.agent.contained ? "Agent is shut down" : "Shut down agent";
+function renderReceipts() {
+  const r = state.receipts;
+  $("receipt-head").innerHTML = `
+    <span class="verify ${r.chain_intact ? "ok" : "bad"}">${r.chain_intact ? "✓" : "✗"} ${r.count} receipts · ${r.chain_intact ? "every signature and link verifies" : `broken at receipt ${r.broken_at}`}</span>
+    <span class="muted small">Ed25519 signer <span class="mono">${esc(r.fingerprint || "")}</span> · payees masked, evidence hashed: no account numbers, no card data</span>`;
+  const rows = r.recent.map((x) => `
+    <tr>
+      <td><a class="mono" href="/verify/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">${esc(x.id)} ↗</a></td>
+      <td>${esc(x.agent_id || "")}</td>
+      <td><span class="badge ${esc(x.action)}">${esc(BADGES[x.action] || x.action)}</span></td>
+      <td class="num">${x.amount ? esc(money(x.amount, x.currency || "USD")) : ""}</td>
+      <td>${esc(x.payee || "")}</td>
+      <td class="muted">${esc((RAILS[x.rail] || {}).label || x.rail || "")}</td>
+      <td>${esc(x.settlement || "")}</td>
+      <td>${x.signed ? '<span class="ok">✓ signed</span>' : '<span class="bad">✗</span>'}${x.metal_tx ? ` · <a href="/verify/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">verify on-chain ↗</a>` : ""}</td>
+    </tr>`).join("");
+  $("receipts").innerHTML = `<thead><tr><th>Receipt</th><th>Agent</th><th>Decision</th><th>Amount</th><th>Payee</th><th>Rail</th><th>Settlement</th><th>Proof</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="8" class="muted">No decisions yet.</td></tr>'}</tbody>`;
 }
 
-$("btn-reset").addEventListener("click", async () => {
-  await api("/api/reset", {});
-  $("verify-result").textContent = "";
+// --- 4. recover ---------------------------------------------------------------
+
+function pipeline(stateName) {
+  const steps = state.cases.pipeline;
+  const lost = stateName === "LOST" || stateName === "NOT_ELIGIBLE";
+  const at = lost ? steps.length - 1 : steps.indexOf(stateName);
+  return `<ol class="pipeline">${steps.map((s, i) => {
+    const label = i === steps.length - 1 && lost ? CASE_WORDS[stateName] : CASE_WORDS[s];
+    const cls = i < at ? "done" : i === at ? (lost ? "lost" : "now") : "";
+    return `<li class="${cls}">${esc(label)}</li>`;
+  }).join("")}</ol>`;
+}
+
+function caseCard(c) {
+  return `
+    <article class="case">
+      <div class="case-top">
+        <div>
+          <div class="card-title"><span class="amount">${esc(money(c.amount, c.currency || "USD"))}</span>
+            <span class="payee">${esc(c.merchant_name || "unknown merchant")}</span>
+            <span class="rail-name">MCC ${esc(c.merchant_category)} · ${esc(c.agent_id)}'s card</span></div>
+          <p class="desc">Card debit with <b>no Intent Receipt</b> and no human approval · case <span class="mono">${esc(c.case_id)}</span></p>
+        </div>
+        ${pipeline(c.state)}
+      </div>
+      ${c.summary ? `<p class="explain"><span class="who">Investigation</span>${esc(c.summary)}</p>` : ""}
+      <div class="result">
+        <span>status: ${esc(c.reason || CASE_WORDS[c.state])}</span>
+        ${c.evidence_file_id ? `<span>evidence <span class="mono">${esc(short(c.evidence_file_id, 14))}</span></span>` : ""}
+        ${c.dispute_id ? `<span>Airwallex dispute <span class="mono">${esc(short(c.dispute_id, 13))}</span> · ${esc(c.dispute_status || "")}</span>` : ""}
+        <span class="muted">card txn <span class="mono">${esc(short(c.card_transaction_id, 13))}</span></span>
+      </div>
+      <p class="fine">Recovered only when Airwallex reports the dispute won. A submitted dispute is not money back.</p>
+    </article>`;
+}
+
+function renderCases() {
+  const items = state.cases.items;
+  $("cases").innerHTML = items.length
+    ? items.map(caseCard).join("")
+    : `<div class="empty">No unexplained charges. Press <b>Run reconciliation</b> to match every card debit to a receipt.</div>`;
+}
+
+$("btn-reconcile").addEventListener("click", async (event) => {
+  await busy(event.currentTarget, "Matching debits to receipts…", async () => {
+    const { ok, data } = await api("/api/reconcile", {});
+    toast(ok ? `Reconciliation: ${data.cases.length} unexplained charge${data.cases.length === 1 ? "" : "s"}` : `Failed: ${esc(data.detail)}`);
+  });
   refresh();
 });
 
-// --- audit and scorecard -----------------------------------------------------------
+// --- 5. locks -----------------------------------------------------------------
+
+function renderLocks() {
+  const l = state.locks;
+  const items = (l.results || []).map((r) => `
+    <article class="lock-card ${r.held ? "held" : "open"}">
+      <div class="lock-icon">${LOCK_ICON}</div>
+      <div>
+        <h4>${esc(r.title)}</h4>
+        <p class="muted small">${esc(r.lock || "")}</p>
+        <p>rail answered <span class="code ${r.held ? "violation" : ""}">${esc(r.got)}</span></p>
+        <p class="${r.held ? "ok" : "bad"}">${r.held ? "Independent lock held" : `Expected ${esc(r.expected)}`}</p>
+        ${r.ids ? Object.entries(r.ids).map(([k, v]) => link(k, v)).join(" ") : ""}
+      </div>
+    </article>`).join("");
+  $("lock-results").innerHTML = items
+    ? `${items}<p class="muted small lock-source">Source: ${esc(l.source || "")}</p>`
+    : `<div class="empty">${state.mode === "live" ? "Run <b>python -m warden.demo --live</b> to test the locks against the real rails." : "Fire procurement-bot, then press <b>Test the locks</b>."}</div>`;
+}
+
+$("btn-locks").addEventListener("click", async (event) => {
+  await busy(event.currentTarget, "Testing…", () => api("/api/locks", {}));
+  refresh();
+});
+
+// --- audit, reset and scorecard ---------------------------------------------------
 
 function renderAudit() {
   const rows = state.audit.recent.map((e) => `
@@ -319,23 +502,28 @@ $("btn-verify").addEventListener("click", async () => {
   out.textContent = data.intact ? `✓ Chain intact · ${data.entries} entries` : `✗ Tampered at entry #${data.broken_at}`;
 });
 
+$("btn-reset").addEventListener("click", async () => {
+  await api("/api/reset", {});
+  $("verify-result").textContent = "";
+  $("hire-draft").innerHTML = "";
+  refresh();
+});
+
 async function loadScorecard() {
   const { ok, data } = await api("/api/scorecard");
   if (!ok) return;
-  const rows = data.rows.map((r) => {
-    const good = r.attack ? r.action !== "ALLOW" : r.action === "ALLOW";
-    return `<li><span class="mark ${good ? "ok" : "bad"}">${good ? "✓" : "✗"}</span><span>${esc(r.name)}</span><span class="act">${esc(r.action)}</span></li>`;
-  }).join("");
-  $("scorecard").innerHTML = `<div class="score-big"><span class="${data.ok ? "ok" : ""}">${esc(data.summary)}</span></div><ul class="score-rows">${rows}</ul>`;
+  $("scorecard").innerHTML = `<span class="score ${data.ok ? "ok" : "bad"}">${esc(data.summary)}</span>
+    <span class="muted small">attack gauntlet on simulated rails · ${data.rows.length} scenarios</span>`;
 }
 
 function render() {
-  renderRails();
-  renderTrust();
-  renderBanner();
+  renderHeader();
+  renderAgents();
   renderFeed();
   renderInbox();
-  renderKill();
+  renderReceipts();
+  renderCases();
+  renderLocks();
   renderAudit();
 }
 

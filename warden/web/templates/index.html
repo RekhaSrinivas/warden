@@ -4,9 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Warden</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2334d399' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z'/%3E%3C/svg%3E">
 </head>
@@ -18,71 +15,127 @@
         <path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/>
       </svg>
       <div>
-        <h1>Warden</h1>
-        <p class="tagline">One guard for every way an AI agent spends money</p>
+        <h1>Warden <span class="sub">financial control plane for AI agents</span></h1>
+        <p class="tagline">{{TAGLINE}}</p>
       </div>
     </div>
     <div class="rails" id="rails"></div>
-    <div class="trust" id="trust"></div>
+    <div class="head-right">
+      <span class="mode-pill" id="mode-pill"></span>
+      <button class="btn btn-link" id="btn-reset" hidden>Reset demo</button>
+    </div>
   </header>
 
-  <div class="banner" id="banner" hidden></div>
+  <nav class="story" aria-label="Story">
+    <a href="#hire"><b>1</b> Hire it</a>
+    <a href="#guard"><b>2</b> Guard it</a>
+    <a href="#prove"><b>3</b> Prove it</a>
+    <a href="#recover"><b>4</b> Recover</a>
+    <a href="#locks"><b>5</b> Independent locks</a>
+  </nav>
 
-  <main class="layout">
-    <section class="col-feed">
-      <div class="panel-head">
-        <h2>Live feed</h2>
-        <span class="mode-pill" id="mode-pill"></span>
+  <main class="page">
+    <!-- 1. Hire ------------------------------------------------------------------ -->
+    <section class="act" id="hire">
+      <div class="act-head">
+        <h2><span class="num">1</span> Hire it <span class="muted small">every AI worker gets its own mandate, card and on-chain limit</span></h2>
       </div>
-      <div id="feed" class="feed"></div>
+      <div class="hire-grid">
+        <div id="agents" class="agents"></div>
+        <div class="panel hire-panel">
+          <h3>Hire an agent</h3>
+          <p class="hint">Describe the job in plain English. Claude drafts the mandate; code clamps it to company policy; nothing is provisioned until you confirm.</p>
+          <div class="field-row">
+            <input id="hire-id" class="input" placeholder="agent name, e.g. travel-bot" autocomplete="off">
+            <input id="hire-role" class="input" placeholder="role, e.g. travel" autocomplete="off">
+          </div>
+          <textarea id="hire-text" class="input" rows="4" placeholder="Book flights and hotels for the sales team, max $400 per purchase and $1,500 a week, USD only. Anything over $300 needs me."></textarea>
+          <button class="btn btn-ghost" id="btn-draft">Draft mandate</button>
+          <div id="hire-draft"></div>
+        </div>
+      </div>
     </section>
 
-    <aside class="col-side">
-      <section class="panel controls">
-        <h2>Agent controls</h2>
-        <p class="hint">The buyer agent proposes payments. Warden decides. Try to fool it.</p>
-        <div class="control-row">
-          <button class="btn btn-attack" id="btn-attack">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
-            Send the agent a scam email
-          </button>
-          <button class="btn btn-ghost" id="btn-normal">Run a normal day</button>
+    <!-- 2. Guard ----------------------------------------------------------------- -->
+    <section class="act" id="guard">
+      <div class="act-head">
+        <h2><span class="num">2</span> Guard it <span class="muted small">code checks the limits, Claude reads the evidence, Warden decides</span></h2>
+        <div class="act-tools">
+          <label class="muted small" for="feed-filter">Show</label>
+          <select id="feed-filter" class="input input-sm"></select>
         </div>
-        <button class="btn btn-kill" id="btn-kill">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
-          <span>Shut down agent</span>
-        </button>
-        <button class="btn btn-link" id="btn-reset" hidden>Reset demo</button>
-      </section>
+      </div>
+      <div class="guard-grid">
+        <div id="feed" class="feed"></div>
+        <aside class="side">
+          <section class="panel controls">
+            <h3>Try to fool an agent</h3>
+            <div class="field-row">
+              <select id="attack-agent" class="input"></select>
+            </div>
+            <div class="control-row">
+              <button class="btn btn-attack" id="btn-attack">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+                Send the agent a scam email
+              </button>
+            </div>
+            <button class="btn btn-ghost btn-wide" id="btn-normal">Run a normal day</button>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Approval inbox</h3>
+              <span class="count" id="inbox-count">0</span>
+            </div>
+            <div id="inbox"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Approval inbox</h2>
-          <span class="count" id="inbox-count">0</span>
-        </div>
-        <div id="inbox"></div>
-      </section>
+    <!-- 3. Prove ----------------------------------------------------------------- -->
+    <section class="act" id="prove">
+      <div class="act-head">
+        <h2><span class="num">3</span> Prove it <span class="muted small">a signed Intent Receipt for every decision, verifiable by anyone</span></h2>
+        <div class="act-tools"><a class="btn btn-ghost btn-sm" href="/verify" target="_blank" rel="noopener">Public verify page ↗</a></div>
+      </div>
+      <div class="panel">
+        <div class="receipt-head" id="receipt-head"></div>
+        <div class="table-wrap"><table class="grid" id="receipts"></table></div>
+      </div>
+    </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Gauntlet scorecard</h2>
-          <span class="muted small">simulated rails</span>
-        </div>
-        <div id="scorecard" class="scorecard"><p class="muted">Scoring…</p></div>
-      </section>
-    </aside>
+    <!-- 4. Recover --------------------------------------------------------------- -->
+    <section class="act" id="recover">
+      <div class="act-head">
+        <h2><span class="num">4</span> Recover <span class="muted small">every card debit must match a receipt; the ones that don't become cases</span></h2>
+        <div class="act-tools"><button class="btn btn-ghost btn-sm" id="btn-reconcile">Run reconciliation</button></div>
+      </div>
+      <div id="cases"></div>
+    </section>
 
-    <section class="panel col-audit">
-      <div class="panel-head">
+    <!-- 5. Locks ----------------------------------------------------------------- -->
+    <section class="act" id="locks">
+      <div class="act-head">
+        <h2><span class="num">5</span> Independent locks <span class="muted small">Warden switched off: the rails still refuse</span></h2>
+        <div class="act-tools"><button class="btn btn-ghost btn-sm" id="btn-locks" hidden>Test the locks</button></div>
+      </div>
+      <div id="lock-results" class="locks"></div>
+    </section>
+
+    <!-- Audit -------------------------------------------------------------------- -->
+    <section class="act" id="audit-log">
+      <div class="act-head">
         <h2>Audit log <span class="muted small">append-only, hash-chained</span></h2>
         <div class="audit-actions">
           <span id="verify-result" class="verify"></span>
           <button class="btn btn-ghost btn-sm" id="btn-verify">Verify chain</button>
         </div>
       </div>
-      <div class="table-wrap"><table class="audit" id="audit"></table></div>
+      <div class="panel"><div class="table-wrap"><table class="grid" id="audit"></table></div></div>
     </section>
   </main>
+
+  <footer class="footer" id="scorecard"><span class="muted">Scoring the attack gauntlet…</span></footer>
 
   <div class="toast" id="toast" role="status" hidden></div>
 
