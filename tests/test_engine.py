@@ -81,7 +81,8 @@ def test_two_denials_contain_the_agent():
 
 def test_rail_decline_is_recorded_as_the_second_lock():
     warden, rails = w.offline_warden(BlindReader())
-    warden.mandate = replace(warden.mandate, allowed_mccs=warden.mandate.allowed_mccs | {w.MCC_GIFT_SHOP})
+    weakened = warden.mandate_for(w.AGENT)
+    warden.mandates[w.AGENT] = replace(weakened, allowed_mccs=weakened.allowed_mccs | {w.MCC_GIFT_SHOP})
     decision = warden.submit(w.gift_card())  # Warden's mandate is weakened; the card's own control still says no
     assert decision.action is Action.ALLOW
     assert decision.execution == {"rail": "airwallex-card", "status": "DECLINED_BY_RAIL",

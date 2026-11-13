@@ -1,4 +1,7 @@
-"""The demo company: Acme's buyer agent, its vendors, its mandate, and the proposals it makes.
+"""The demo company: Acme's two AI workers, their vendors, their mandates, and the proposals they make.
+
+procurement-bot pays supplier invoices by Airwallex transfer and buys supplies on its own card.
+research-bot pays per call for data on Metal (x402) and holds a small card for software.
 
 Shared by the tests, the gauntlet and the demo, so they all tell the same story.
 """
@@ -14,7 +17,9 @@ from warden.models import Evidence, Proposal
 from warden.rails.fake import FakeRail
 from warden.risk import OfflineRiskReader, RiskReader
 
-AGENT = "buyer-agent"
+PROCUREMENT = "procurement-bot"
+RESEARCH = "research-bot"
+AGENT = PROCUREMENT  # the agent the attacks target; kept for callers that know only one agent
 
 # vendor name -> (beneficiary id in Airwallex, email domain)
 VENDORS = {
@@ -30,29 +35,60 @@ MCC_OFFICE_SUPPLIES = "5111"
 MCC_STATIONERY = "5943"
 MCC_OFFICE_FURNITURE = "5021"
 MCC_GIFT_SHOP = "5947"
+MCC_SOFTWARE = "5734"  # computer software stores
+MCC_DATA_SERVICES = "7375"  # information retrieval services
 
 FRAUD_EMAIL = "email:accounts@acme-supplies-billing.net"
 LOOKALIKE_EMAIL = "email:billing@acme-supp1ies.com"
 
 
-def demo_mandate() -> Mandate:
+# Deliberately asks for more than company policy allows ($2,500 a week, an unverified vendor),
+# so the hire scene shows code clamping what the model drafted.
+PROCUREMENT_INSTRUCTION = (
+    "Buy office supplies, stationery and office furniture, and pay approved invoices from Acme, Globex and "
+    "Initech. Also pay CheapPrint Ltd when we need printing. Max $500 per purchase and $2,500 a week, USD only. "
+    "It may pay the VendorCheck API to verify a vendor. Anything involving new bank details or a new payee needs me.")
+RESEARCH_INSTRUCTION = (
+    "Buy market data from the VendorCheck API per call, and software subscriptions. Max $50 per purchase "
+    "and $200 a week, USD only. Never buy gift cards.")
+
+
+def procurement_mandate() -> Mandate:
     return Mandate(
-        per_txn_cap=Decimal("500"),
-        weekly_cap=Decimal("2000"),
-        currencies=frozenset({"USD"}),
+        per_txn_cap=Decimal("500"), weekly_cap=Decimal("2000"), currencies=frozenset({"USD"}),
         allowed_mccs=frozenset({MCC_OFFICE_SUPPLIES, MCC_STATIONERY, MCC_OFFICE_FURNITURE}),
         payee_allowlist=frozenset({ben for ben, _ in VENDORS.values()} | {DATA_API_PAYEE}),
-        reserve_floor=Decimal("1000"),
-        velocity_per_hour=10,
+        reserve_floor=Decimal("1000"), velocity_per_hour=10,
+        mandate_id="mdt_procurement_demo", agent_id=PROCUREMENT, purpose="Office supplies and approved invoices",
+        instruction=PROCUREMENT_INSTRUCTION, human_required=("new bank details", "new payee"),
     )
 
 
-def offline_warden(risk_reader: RiskReader | None = None) -> tuple[Warden, dict[str, FakeRail]]:
-    """A Warden wired to simulated rails. The card rail mimics Airwallex's own merchant-category control."""
+def research_mandate() -> Mandate:
+    return Mandate(
+        per_txn_cap=Decimal("50"), weekly_cap=Decimal("200"), currencies=frozenset({"USD"}),
+        allowed_mccs=frozenset({MCC_SOFTWARE, MCC_DATA_SERVICES}), payee_allowlist=frozenset({DATA_API_PAYEE}),
+        reserve_floor=Decimal("1000"), velocity_per_hour=30,
+        mandate_id="mdt_research_demo", agent_id=RESEARCH, purpose="Market data per call and software",
+        instruction=RESEARCH_INSTRUCTION,
+    )
+
+
+def demo_mandate() -> Mandate:
+    """The procurement agent's mandate, the one the attacks are aimed at."""
+    return procurement_mandate()
+
+
+def offline_warden(risk_reader: RiskReader | None = None, hire: bool = True) -> tuple[Warden, dict[str, FakeRail]]:
+    """A Warden wired to simulated rails, with both agents hired unless `hire` is False (the demo hires
+    them on screen). The card rail mimics Airwallex's merchant-category control."""
     card = FakeRail("airwallex-card", decline={MCC_GIFT_SHOP: "MERCHANT_CATEGORY_NOT_ALLOWED"})
     rails = {"transfer": FakeRail("airwallex-transfer"), "card": card,
              "vic_checkout": FakeRail("airi"), "x402": FakeRail("metal")}
     warden = Warden(demo_mandate(), risk_reader or OfflineRiskReader(VENDOR_DOMAINS), rails, audit=AuditLog())
+    if hire:
+        warden.hire(PROCUREMENT, procurement_mandate(), role="procurement")
+        warden.hire(RESEARCH, research_mandate(), role="research")
     return warden, rails
 
 
@@ -122,10 +158,13 @@ def office_chair_checkout(amount: str = "120") -> Proposal:
     )
 
 
-def data_api_call(amount: str = "0.01", payee: str = DATA_API_PAYEE, page: str = "") -> Proposal:
+def data_api_call(amount: str = "0.01", payee: str = DATA_API_PAYEE, page: str = "",
+                  agent_id: str = RESEARCH) -> Proposal:
     evidence = (Evidence(f"web:{DATA_API_URL}", False, page),) if page else ()
     return Proposal(
-        agent_id=AGENT, rail="x402", amount=Decimal(amount), currency="USD", payee_id=payee,
-        payee_name="VendorCheck API", description="Verify a vendor's bank account", evidence=evidence,
-        agent_reasoning="Checking vendor details before paying.", extra={"url": DATA_API_URL},
+        agent_id=agent_id, rail="x402", amount=Decimal(amount), currency="USD", payee_id=payee,
+        payee_name="VendorCheck API", evidence=evidence,
+        description="Market data lookup" if agent_id == RESEARCH else "Verify a vendor's bank account",
+        agent_reasoning=("Pulling market data for this week's research brief." if agent_id == RESEARCH
+                         else "Checking vendor details before paying."), extra={"url": DATA_API_URL},
     )

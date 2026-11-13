@@ -1,10 +1,8 @@
 """Live wiring without the network: card controls, payee mapping, settlement, and the offline story."""
 
-from decimal import Decimal
 from typing import Any
 
 from warden import demo, demo_world as w, live
-from warden.models import Action
 from warden.rails.airwallex import AirwallexRail
 
 
@@ -53,15 +51,19 @@ def test_transfer_uses_the_real_beneficiary_and_settles_to_paid():
     assert result["status"] == "PAID"
 
 
-def test_offline_story_contains_the_agent_and_every_second_lock_holds(tmp_path, monkeypatch):
+def test_offline_story_contains_only_the_attacked_agent_and_every_lock_holds(tmp_path, monkeypatch):
     monkeypatch.setattr(demo, "EVIDENCE_PATH", tmp_path / "evidence.json")
     monkeypatch.setattr(demo, "say", lambda line: None)
     story, extra = demo.offline_story()
     demo.run_story(story)
     actions = [s["action"] for s in story.steps]
-    assert actions == ["ALLOW"] * 4 + ["BLOCK", "STEP_UP", "BLOCK", "CONTAIN"]
-    assert all(p["held"] for p in story.proofs)
-    assert story.warden.trust.is_contained(w.AGENT)
+    assert actions == ["ALLOW"] * 6 + ["BLOCK", "STEP_UP", "BLOCK", "CONTAIN", "ALLOW"]
+    assert [h["agent_id"] for h in story.hires] == [w.PROCUREMENT, w.RESEARCH]
+    assert any("capped at $2000" in c for c in story.hires[0]["changes"])
+    assert story.out_of_band["result"] == "APPROVED"  # Warden never saw it: that is the point
+    assert all(p["held"] for p in story.proofs) and len(story.proofs) == 3
+    assert story.warden.trust.is_contained(w.PROCUREMENT)
+    assert not story.warden.trust.is_contained(w.RESEARCH)
+    assert story.steps[-1]["agent_id"] == w.RESEARCH  # research-bot kept working after the containment
     story.save(extra)
     assert (tmp_path / "evidence.json").exists()
-    assert Action(actions[-1]) is Action.CONTAIN and Decimal(story.steps[3]["amount"]) == Decimal("0.01")

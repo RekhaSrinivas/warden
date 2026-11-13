@@ -98,6 +98,12 @@ class SimulationAdapter:
             "transaction_currency": currency, "merchant_category_code": mcc,
         })
 
+    def capture(self, lifecycle_id: str, amount: Decimal) -> dict[str, Any]:
+        """Clear an authorization. Sandbox authorizations stay AUTHORIZED until captured, and only a
+        cleared charge can be disputed later."""
+        return self.client.post(f"/api/v1/simulation/issuing/card_transaction_lifecycles/{lifecycle_id}/capture",
+                                {"transaction_amount": float(amount)})
+
     def transfer_transition(self, transfer_id: str, next_status: str, failure_type: str | None = None) -> dict[str, Any]:
         body = {"next_status": next_status}
         if failure_type:
@@ -157,11 +163,17 @@ class AirwallexRail:
         except AirwallexError as e:
             raise _decline_or_error(e) from None
         result = data.get("process_result") or data.get("status")
+        ids = card_ids(card_id, data)
         if result not in ("APPROVED", "PENDING"):
-            raise RailDeclined(str(data.get("failure_reason") or result),
-                               {"card_id": card_id, "card_transaction_id": data.get("card_transaction_id")})
-        return {"rail": self.name, "card_id": card_id, "card_transaction_id": data.get("card_transaction_id"),
-                "status": result, "simulated_authorization": True}
+            raise RailDeclined(str(data.get("failure_reason") or result), ids)
+        try:
+            cleared = self.simulation.capture(ids["lifecycle_id"], p.amount)
+        except AirwallexError as e:
+            return {"rail": self.name, **ids, "status": "AUTHORIZED", "capture_error": e.summary(),
+                    "simulated_authorization": True}
+        return {"rail": self.name, **ids, "clearing_event_id": cleared.get("card_transaction_event_id"),
+                "status": "CLEARED" if (cleared.get("process_result") == "APPROVED") else cleared.get("process_result"),
+                "simulated_authorization": True}
 
     def contain(self, agent_id: str) -> dict[str, Any]:
         card_id = self.agent_cards.get(agent_id)
@@ -181,6 +193,14 @@ class AirwallexRail:
             if b.get("currency") == currency:
                 return Decimal(str(b.get("available_amount", 0)))
         return None
+
+
+def card_ids(card_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    """The ids of one simulated card authorization, as receipts and disputes need them."""
+    return {"card_id": card_id, "card_transaction_id": data.get("card_transaction_id"),
+            "lifecycle_id": data.get("card_transaction_lifecycle_id") or data.get("lifecycle_id"),
+            "auth_event_id": data.get("card_transaction_event_id"),
+            "process_result": data.get("process_result"), "failure_reason": data.get("failure_reason")}
 
 
 def _decline_or_error(e: AirwallexError) -> Exception:

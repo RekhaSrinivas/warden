@@ -6,8 +6,11 @@ it belongs in this file, not in a prompt.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Any
 
 from warden.models import Proposal
 
@@ -29,6 +32,36 @@ class Mandate:
     payee_allowlist: frozenset[str] = frozenset()
     reserve_floor: Decimal = Decimal("0")
     velocity_per_hour: int = 10
+    # Who the mandate belongs to and what the human said it is for. Not rules, but
+    # part of the hash, so a receipt proves which instruction a payment ran under.
+    mandate_id: str = ""
+    agent_id: str = ""
+    purpose: str = ""
+    instruction: str = ""
+    # Payments above this always go to a human, whatever the agent's trust. None means per_txn_cap.
+    approval_threshold: Decimal | None = None
+    human_required: tuple[str, ...] = ()  # the human's own words, e.g. "new bank details"
+
+    @property
+    def auto_approve_cap(self) -> Decimal:
+        return min(self.per_txn_cap, self.approval_threshold) if self.approval_threshold is not None else self.per_txn_cap
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mandate_id": self.mandate_id, "agent_id": self.agent_id, "purpose": self.purpose,
+            "instruction": self.instruction, "per_txn_cap": str(self.per_txn_cap), "weekly_cap": str(self.weekly_cap),
+            "currencies": sorted(self.currencies), "allowed_mccs": sorted(self.allowed_mccs),
+            "payee_allowlist": sorted(self.payee_allowlist), "reserve_floor": str(self.reserve_floor),
+            "velocity_per_hour": self.velocity_per_hour,
+            "approval_threshold": None if self.approval_threshold is None else str(self.approval_threshold),
+            "human_required": list(self.human_required),
+        }
+
+
+def mandate_hash(mandate: Mandate) -> str:
+    """sha256 of the canonical mandate: the fingerprint every receipt carries."""
+    canonical = json.dumps(mandate.to_dict(), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 @dataclass

@@ -38,7 +38,9 @@ class MetalRail:
             raise RailDeclined(refused.group(1), {"output": tail(result)})
         if result.returncode != 0:
             raise RailError(f"metal-agent pay failed: {tail(result)}")
-        return {"rail": self.name, "transaction": _first(_TRANSACTION, output), "explorer": _first(_EXPLORER, output)}
+        # The credential file is what `mandate verify` needs to prove this payment ran under the human's mandate.
+        return {"rail": self.name, "transaction": _first(_TRANSACTION, output), "explorer": _first(_EXPLORER, output),
+                "credential": mandate.name}
 
     def contain(self, agent_id: str) -> dict[str, Any]:
         mandate = self.mandates.get(agent_id)

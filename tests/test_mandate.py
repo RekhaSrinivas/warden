@@ -47,4 +47,4 @@ def test_duplicate_reserve_floor_and_velocity():
     busy = SpendState()
     for i in range(10):
         busy.record(w.AGENT, Decimal("1"), NOW - HOUR_SECONDS + 60 + i)
-    assert "VELOCITY" in violations(w.data_api_call(), busy)
+    assert "VELOCITY" in violations(w.data_api_call(agent_id=w.AGENT), busy)

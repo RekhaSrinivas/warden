@@ -32,14 +32,15 @@ def test_metal_pay_parses_transaction_and_refusal(tmp_path):
         (1, "error: payment refused: mandate_cap_exceeded (the amount is above the cap); nothing was paid\n"),
         (0, "revoked\ntransaction 0xdef456\n"),
     ])
-    rail = MetalRail(CliRunner(["metal-agent"], run=fake), {w.AGENT: tmp_path / "mandate.json"}, tmp_path / "owner.json")
+    rail = MetalRail(CliRunner(["metal-agent"], run=fake), {w.RESEARCH: tmp_path / "mandate.json"}, tmp_path / "owner.json")
 
     assert rail.execute(w.data_api_call()) == {"rail": "metal", "transaction": "0xabc123",
-                                                "explorer": "https://testnet.metalntwx.com/tx/0xabc123"}
+                                                "explorer": "https://testnet.metalntwx.com/tx/0xabc123",
+                                                "credential": "mandate.json"}
     with pytest.raises(RailDeclined) as refused:
         rail.execute(w.data_api_call())
     assert refused.value.reason == "mandate_cap_exceeded"
-    assert rail.contain(w.AGENT)["transaction"] == "0xdef456"
+    assert rail.contain(w.RESEARCH)["transaction"] == "0xdef456"
     assert fake.commands[0][1:] == ["pay", w.DATA_API_URL, "--mandate", str(tmp_path / "mandate.json"),
                                     "--network", "testnet"]
 
@@ -112,3 +113,26 @@ def test_airwallex_duplicate_request_is_a_decline():
     with pytest.raises(RailDeclined) as declined:
         airwallex_rail(handler).execute(w.invoice("Acme Office Supply", "420", "INV-1001"))
     assert declined.value.reason == "duplicate_request"
+
+
+def test_approved_card_purchase_is_captured_and_returns_every_id():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        seen.append(path)
+        if path.endswith("/authentication/login"):
+            return httpx.Response(200, json={"token": "t"})
+        if path.endswith("/simulation/issuing/create"):
+            return httpx.Response(200, json={"process_result": "APPROVED", "card_transaction_id": "ctx_1",
+                                             "card_transaction_lifecycle_id": "life_1",
+                                             "card_transaction_event_id": "evt_auth"})
+        if path.endswith("/card_transaction_lifecycles/life_1/capture"):
+            return httpx.Response(200, json={"process_result": "APPROVED", "card_transaction_event_id": "evt_clear"})
+        return httpx.Response(404, json={"code": "not_found"})
+
+    result = airwallex_rail(handler).execute(w.supplies_card())
+    assert result["status"] == "CLEARED"
+    assert (result["card_transaction_id"], result["lifecycle_id"], result["auth_event_id"],
+            result["clearing_event_id"]) == ("ctx_1", "life_1", "evt_auth", "evt_clear")
+    assert seen[-1].endswith("/card_transaction_lifecycles/life_1/capture")

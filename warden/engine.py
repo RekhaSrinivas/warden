@@ -1,9 +1,33 @@
 """The Warden engine: the only path from an agent's proposal to money moving.
 
+hire():    records an agent's mandate (what a human authorised) before it may spend
 submit():  dedupe lock -> mandate check -> risk read -> decide -> act -> audit
 approve(): runs a STEP_UP proposal only if the human's approval hash still matches
 deny():    refuses it and records a strike against the agent
-contain(): the kill switch, also triggered automatically on a second strike
+contain(): the kill switch for one agent, also triggered automatically on a second strike
+
+Each agent has its own mandate, trust score and strikes. Containing one agent
+freezes only its card and revokes only its Metal mandate; the others keep working.
+
+Audit entry schema (stable: signed receipts are built from the log alone)
+-------------------------------------------------------------------------
+Every entry: {seq, ts, event, data, prev_hash, hash}. The `data` per event:
+
+agent_hired        agent_id, role, mandate (Mandate.to_dict()), mandate_id, mandate_hash,
+                   provisioning (card_id, cardholder_id, metal mandate_id / bind tx, ...)
+proposal_received  proposal (Proposal.summary())
+risk_read          proposal_id, flags, severity, explanation, source
+decision | approval | denial
+                   every Decision field (proposal_id, action, reasons, violations, risk, trust_before,
+                   trust_after, approval_hash, execution, containment) plus:
+                   agent_id, mandate_id, mandate_hash, rail, amount (str), currency, payee_id,
+                   payee_name, merchant_category, request_id, evidence_hash, approver (None unless
+                   a human acted).
+                   execution holds the rail's real ids: Airwallex transfer_id/status/request_id;
+                   card card_id, card_transaction_id, lifecycle_id, auth_event_id, clearing_event_id,
+                   status; Metal transaction + explorer + credential; Airi mandate_id + approval_url.
+approval_rejected  proposal_id, reason
+manual_containment agent_id, reason, results (per rail, real ids)
 """
 
 from __future__ import annotations
@@ -17,7 +41,7 @@ from typing import Any, Callable, Mapping
 from warden import approvals
 from warden.audit import AuditLog
 from warden.decide import AGENT_CONTAINED, DUPLICATE, decide
-from warden.mandate import Mandate, SpendState, check
+from warden.mandate import Mandate, SpendState, check, mandate_hash
 from warden.models import Action, Decision, Proposal, RiskReport
 from warden.rails.base import Rail, RailDeclined, RailError
 from warden.risk import RiskReader
@@ -32,9 +56,11 @@ class Warden:
     def __init__(self, mandate: Mandate, risk_reader: RiskReader, rails: Mapping[str, Rail],
                  audit: AuditLog | None = None, trust: TrustLedger | None = None,
                  balance: Callable[[], Decimal | None] | None = None,
-                 clock: Callable[[], float] = time.time) -> None:
-        """`rails` maps a proposal's rail kind ("transfer", "card", "vic_checkout", "x402") to the rail that runs it."""
+                 clock: Callable[[], float] = time.time, mandates: Mapping[str, Mandate] | None = None) -> None:
+        """`rails` maps a proposal's rail kind ("transfer", "card", "vic_checkout", "x402") to the rail that runs it.
+        `mandate` applies to any agent without its own entry in `mandates`."""
         self.mandate = mandate
+        self.mandates: dict[str, Mandate] = dict(mandates or {})
         self.risk_reader = risk_reader
         self.rails = dict(rails)
         self.audit = audit or AuditLog()
@@ -46,6 +72,20 @@ class Warden:
         self.decisions: dict[str, Decision] = {}
         self._lock = threading.Lock()  # one decision at a time, so two proposals can't both fit the same budget
 
+    def mandate_for(self, agent_id: str) -> Mandate:
+        return self.mandates.get(agent_id, self.mandate)
+
+    # --- hiring -------------------------------------------------------------------
+
+    def hire(self, agent_id: str, mandate: Mandate, role: str = "",
+             provisioning: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """Give an agent its mandate. Logged with its hash so every later receipt can point back to it."""
+        with self._lock:
+            self.mandates[agent_id] = mandate
+            return self.audit.append("agent_hired", agent_id=agent_id, role=role, mandate=mandate.to_dict(),
+                                     mandate_id=mandate.mandate_id, mandate_hash=mandate_hash(mandate),
+                                     provisioning=dict(provisioning or {}))
+
     # --- agent side -------------------------------------------------------------
 
     def submit(self, proposal: Proposal) -> Decision:
@@ -54,11 +94,12 @@ class Warden:
 
     def _submit(self, p: Proposal) -> Decision:
         now = self.clock()
+        mandate = self.mandate_for(p.agent_id)
         self.audit.append("proposal_received", proposal=p.summary())
         if self.balance is not None:
             self.state.balance = self.balance()
 
-        violations = check(self.mandate, p, self.state, now)
+        violations = check(mandate, p, self.state, now)
         if self.trust.is_contained(p.agent_id):
             violations.insert(0, AGENT_CONTAINED)
         self.state.seen_request_ids.add(p.request_id)  # from here on, a replay of this request is refused
@@ -71,7 +112,7 @@ class Warden:
 
         trust_before = self.trust.score(p.agent_id)
         verdict = decide(violations, risk, trust_before, self.trust.strikes(p.agent_id, now), p.amount,
-                         self.mandate.per_txn_cap)
+                         mandate.auto_approve_cap)
         decision = Decision(proposal_id=p.id, action=verdict.action, reasons=verdict.reasons, violations=violations,
                             risk=risk, trust_before=trust_before, trust_after=trust_before)
         if verdict.strike:
@@ -87,7 +128,7 @@ class Warden:
             decision.execution = self._execute(p, now)
             decision.trust_after = self.trust.score(p.agent_id)
 
-        return self._record(decision)
+        return self._record(decision, p)
 
     # --- human side -------------------------------------------------------------
 
@@ -107,7 +148,7 @@ class Warden:
             now = self.clock()
             trust = self.trust.score(p.agent_id)
             # Budgets may have moved while the proposal waited, so the mandate is checked again.
-            violations = check(self.mandate, p, self.state, now, ignore_duplicate=True)
+            violations = check(self.mandate_for(p.agent_id), p, self.state, now, ignore_duplicate=True)
             original = self.decisions[proposal_id]
             decision = Decision(proposal_id=p.id, action=Action.BLOCK if violations else Action.ALLOW,
                                 reasons=[f"Approved by {approver}."], violations=violations, risk=original.risk,
@@ -117,7 +158,7 @@ class Warden:
             else:
                 decision.execution = self._execute(p, now)
                 decision.trust_after = self.trust.score(p.agent_id)
-            return self._record(decision, event="approval")
+            return self._record(decision, p, event="approval", approver=approver)
 
     def deny(self, proposal_id: str, approver: str = "human") -> Decision:
         with self._lock:
@@ -136,10 +177,10 @@ class Warden:
                 decision.reasons.append("Second strike: agent contained on every rail.")
                 decision.containment = self._contain(p.agent_id)
                 decision.trust_after = self.trust.score(p.agent_id)
-            return self._record(decision, event="denial")
+            return self._record(decision, p, event="denial", approver=approver)
 
     def contain(self, agent_id: str, reason: str) -> dict[str, Any]:
-        """Manual kill switch."""
+        """Manual kill switch for one agent."""
         with self._lock:
             results = self._contain(agent_id)
             self.audit.append("manual_containment", agent_id=agent_id, reason=reason, results=results)
@@ -174,7 +215,11 @@ class Warden:
             del self.pending[pid]  # nothing the agent proposed earlier may run now
         return results
 
-    def _record(self, decision: Decision, event: str = "decision") -> Decision:
-        self.audit.append(event, **asdict(decision))
+    def _record(self, decision: Decision, p: Proposal, event: str = "decision", approver: str | None = None) -> Decision:
+        mandate = self.mandate_for(p.agent_id)
+        self.audit.append(event, **asdict(decision), agent_id=p.agent_id, mandate_id=mandate.mandate_id,
+                          mandate_hash=mandate_hash(mandate), rail=p.rail, amount=str(p.amount), currency=p.currency,
+                          payee_id=p.payee_id, payee_name=p.payee_name, merchant_category=p.merchant_category,
+                          request_id=p.request_id, evidence_hash=p.evidence_hash(), approver=approver)
         self.decisions[decision.proposal_id] = decision
         return decision

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
@@ -58,6 +60,11 @@ class Proposal:
         data.pop("extra")
         data["amount"] = str(self.amount)
         return data
+
+    def evidence_hash(self) -> str:
+        """sha256 of the canonical evidence list, so a receipt can prove what the decision was based on."""
+        canonical = json.dumps([[e.source, e.trusted, e.text] for e in self.evidence], separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
