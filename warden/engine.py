@@ -74,6 +74,9 @@ class Warden:
         self.pending: dict[str, Proposal] = {}
         self.decisions: dict[str, Decision] = {}
         self._lock = threading.Lock()  # one decision at a time, so two proposals can't both fit the same budget
+        # Called with (proposal, decision) once a payment is allowed and before the rail runs it, so a narrator
+        # can show the decision before a rail that waits on a human (Airi's passkey) asks for anything.
+        self.on_allow: Callable[[Proposal, Decision], None] | None = None
 
     def mandate_for(self, agent_id: str) -> Mandate:
         return self.mandates.get(agent_id, self.mandate)
@@ -128,7 +131,7 @@ class Warden:
             self.pending[p.id] = p
             decision.approval_hash = approvals.approval_hash(p)
         elif verdict.action is Action.ALLOW:
-            decision.execution = self._execute(p, now)
+            decision.execution = self._execute(p, now, decision)
             decision.trust_after = self.trust.score(p.agent_id)
 
         return self._record(decision, p)
@@ -159,7 +162,7 @@ class Warden:
             if violations:
                 decision.reasons.append(f"Mandate violated at execution time: {', '.join(violations)}.")
             else:
-                decision.execution = self._execute(p, now)
+                decision.execution = self._execute(p, now, decision)
                 decision.trust_after = self.trust.score(p.agent_id)
             return self._record(decision, p, event="approval", approver=approver)
 
@@ -216,10 +219,12 @@ class Warden:
 
     # --- internals ----------------------------------------------------------------
 
-    def _execute(self, p: Proposal, now: float) -> dict[str, Any]:
+    def _execute(self, p: Proposal, now: float, decision: Decision | None = None) -> dict[str, Any]:
         rail = self.rails.get(p.rail)
         if rail is None:
             return {"status": "NO_RAIL", "error": f"No rail configured for {p.rail}"}
+        if self.on_allow is not None and decision is not None:
+            self.on_allow(p, decision)
         try:
             result = rail.execute(p)
         except RailDeclined as e:

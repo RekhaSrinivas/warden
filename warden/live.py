@@ -332,8 +332,9 @@ def reconcile_and_recover(lw: LiveWarden, settings: Settings | None = None) -> l
     summarizer = rv.ClaudeCaseSummarizer(anthropic.Anthropic(api_key=settings.anthropic_api_key))
     cases = rv.run(client, rv.EvidenceUploader(client), cards, rc.load(), rv.load_cases(), contained,
                    summarizer, rv.SandboxSettlement(client))
-    rv.save_cases(cases)
-    return [c for c in cases if c.agent_id in cards]
+    rv.save_cases(cases)  # earlier cards' cases stay on file, so their charges are never disputed twice
+    current = set(cards.values())
+    return [c for c in cases if c.card_id in current]  # this run's cards only
 
 
 # --- Warden bypassed: payments made straight to a rail ----------------------------------

@@ -190,7 +190,8 @@ def live_services(lw: Any) -> Services:
         return results
 
     def cases() -> list[dict[str, Any]]:
-        return [c.to_json() for c in rv.load_cases()]  # the whole case file, including earlier agents' cards
+        current = set(lw.airwallex.agent_cards.values())  # this story's cards; older cases stay on file
+        return [c.to_json() for c in rv.load_cases() if c.card_id in current]
 
     def locks(warden: Warden) -> dict[str, Any]:
         evidence = _read_json(live.ROOT / "data" / "evidence.json") or {}

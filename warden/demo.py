@@ -71,8 +71,18 @@ class Story:
         say(f"\n> {title}")
         say(f"  {proposal.agent_id} proposes: {proposal.description}, {proposal.amount} {proposal.currency} "
             f"to {proposal.payee_name}")
-        decision = self.warden.submit(proposal)
-        self._narrate(decision)
+        shown: list[str] = []
+
+        def before_rail(p: Proposal, d: Decision) -> None:
+            self._narrate_decision(d)
+            shown.append(p.id)
+
+        self.warden.on_allow = before_rail
+        try:
+            decision = self.warden.submit(proposal)
+        finally:
+            self.warden.on_allow = None
+        self._narrate(decision, decided_shown=proposal.id in shown)
         self.steps.append({"title": title, "agent_id": proposal.agent_id, "proposal_id": proposal.id,
                            "request_id": proposal.request_id, "rail": proposal.rail, "amount": str(proposal.amount),
                            "payee": proposal.payee_name, "action": decision.action.value, "reasons": decision.reasons,
@@ -92,12 +102,16 @@ class Story:
         say(f"  rail answered: {got}  ->  {'independent lock HELD' if held else 'UNEXPECTED, check the evidence file'}")
         self.proofs.append({"title": title, "expected": expected, "held": held, "result": result})
 
-    def _narrate(self, d: Decision) -> None:
+    def _narrate_decision(self, d: Decision) -> None:
         if d.risk.source != "skipped":
             flags = ", ".join(d.risk.flags) or "none"
             say(f"  risk reader ({d.risk.source}): severity {d.risk.severity}, flags: {flags}")
             say(f"    \"{d.risk.explanation}\"")
         say(f"  WARDEN: {d.action.value}. {' '.join(d.reasons)}")
+
+    def _narrate(self, d: Decision, decided_shown: bool = False) -> None:
+        if not decided_shown:
+            self._narrate_decision(d)
         if d.trust_after != d.trust_before:
             say(f"  trust {d.trust_before:.2f} -> {d.trust_after:.2f}")
         if d.execution:
