@@ -368,7 +368,7 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
 def _page(title: str, body: str) -> str:
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(title)} · Warden</title>
-<script src="/static/theme.js?v=2"></script><link rel="stylesheet" href="/static/theme-toggle.css?v=2">
+<script src="/static/theme.js?v=2"></script><script src="/static/theme-lab.js?v=3"></script><link rel="stylesheet" href="/static/theme-lab.css?v=3"><link rel="stylesheet" href="/static/theme-toggle.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>{_CSS}</style></head><body>
 <header class="bar"><div class="top"><a href="/verify" class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/></svg>Warden <span class="pill">Verify</span></a>

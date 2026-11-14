@@ -144,7 +144,7 @@ function agentCard(a) {
   const card = a.card
     ? `<div class="rail-line"><span class="rl-icon"><svg viewBox="0 0 24 24">${RAILS.card.icon}</svg></span>
         <span>Airwallex card <span class="mono">${esc(a.card.id)}</span>${a.card.simulated ? ' <span class="muted">(simulated)</span>' : ""}</span>
-        <span class="muted">${a.contained ? "frozen" : `${money(a.per_txn_cap)}/purchase · ${money(a.weekly_cap)}/week · MCC ${esc(a.mccs.join(", ") || "none")}`}</span></div>`
+        <span class="muted rl-limits">${a.contained ? "frozen" : `${money(a.per_txn_cap)}/purchase · ${money(a.weekly_cap)}/week · MCC ${esc(a.mccs.join(", ") || "none")}`}</span></div>`
     : "";
   const metal = a.metal
     ? `<div class="rail-line"><span class="rl-icon"><svg viewBox="0 0 24 24">${RAILS.x402.icon}</svg></span>
@@ -589,7 +589,7 @@ function renderLocks() {
         <p class="muted small">${esc(r.lock || "")}</p>
         <p>rail answered <span class="code ${r.held ? "violation" : ""}">${esc(r.got)}</span></p>
         <p class="${r.held ? "ok" : "bad"}">${r.held ? "Independent lock held" : `Expected ${esc(r.expected)}`}</p>
-        ${r.ids ? Object.entries(r.ids).map(([k, v]) => link(k, v)).join(" ") : ""}
+        ${r.ids ? `<div class="lock-ids">${Object.entries(r.ids).map(([k, v]) => `<div>${link(k, v)}</div>`).join("")}</div>` : ""}
       </div>
     </article>`).join("");
   $("lock-results").innerHTML = items

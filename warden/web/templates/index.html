@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Warden</title>
   <script src="/static/theme.js?v={{V}}"></script>
+  <script src="/static/theme-lab.js?v={{V}}"></script><link rel="stylesheet" href="/static/theme-lab.css?v={{V}}">
   <link rel="stylesheet" href="/static/theme-toggle.css?v={{V}}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -189,8 +190,8 @@
               <h3>Hire an agent</h3>
               <p class="hint">Describe the job in plain English. Claude drafts the mandate; code clamps it to company policy; nothing is provisioned until you confirm. <b>Only the job description decides what the agent may buy</b>; the team label is just a label.</p>
               <div class="field-row">
-                <input id="hire-id" class="input" placeholder="agent name, e.g. travel-bot" autocomplete="off">
-                <input id="hire-role" class="input" placeholder="team label, e.g. Sales" title="A label shown on the agent's card. It grants nothing." autocomplete="off">
+                <input id="hire-id" class="input" placeholder="name, e.g. travel-bot" autocomplete="off">
+                <input id="hire-role" class="input" placeholder="team, e.g. Sales" title="A label shown on the agent's card. It grants nothing." autocomplete="off">
               </div>
               <textarea id="hire-text" class="input" rows="4" placeholder="Book flights and hotels for the sales team, max $400 per purchase and $1,500 a week, USD only. Anything over $300 needs me."></textarea>
               <button class="btn btn-ghost" id="btn-draft">Draft mandate</button>
@@ -213,22 +214,26 @@
             <aside class="side">
               <section class="panel controls">
                 <h3>Try to fool an agent</h3>
+                <label class="ctl-label" for="attack-agent">Agent</label>
                 <div class="field-row">
                   <select id="attack-agent" class="input"></select>
                 </div>
-                <div class="control-row">
+                <p class="ctl-label">Everyday work</p>
+                <button class="btn btn-ghost btn-wide btn-normal" id="btn-normal">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 9.5 17 19 7.5"/></svg>
+                  Run a normal day
+                </button>
+                <p class="ctl-label ctl-label-attack">Attacks</p>
+                <div class="control-stack">
                   <button class="btn btn-attack" id="btn-attack">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
                     Send the agent a scam email
                   </button>
-                </div>
-                <div class="control-row">
                   <button class="btn btn-attack" id="btn-card-outside" title="Someone copied the agent's card details and spends with them directly, skipping Warden">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>
                     Use its card outside Warden
                   </button>
                 </div>
-                <button class="btn btn-ghost btn-wide" id="btn-normal">Run a normal day</button>
               </section>
               <section class="panel" id="inbox-panel">
                 <div class="panel-head">
