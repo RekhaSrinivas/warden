@@ -1,0 +1,138 @@
+/* Warden "Aurora" theme. Loaded last: deep midnight, teal and violet light, frosted glass.
+   Meaning colours are unchanged: green = paid/allowed, red = blocked, amber = held for a human. */
+
+:root {
+  --bg: #050811;
+  --surface: #0c1322;
+  --surface-2: #121b2e;
+  --border: rgba(148, 163, 184, 0.13);
+  --text: #eef2ff;
+  --muted: #9aa8bf;
+  --faint: #66748b;
+  --teal: #2dd4bf;
+  --cyan: #22d3ee;
+  --violet: #a78bfa;
+  --indigo: #818cf8;
+  --glass: linear-gradient(180deg, rgba(20, 30, 52, 0.62), rgba(10, 16, 30, 0.62));
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --shine: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --lift: 0 24px 48px -24px rgba(0, 0, 0, 0.7);
+  --brand-grad: linear-gradient(100deg, #5eead4 0%, #22d3ee 35%, #a78bfa 100%);
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+body {
+  font-family: var(--font);
+  font-feature-settings: "cv11", "ss01";
+  background:
+    radial-gradient(900px 520px at 8% -6%, rgba(139, 92, 246, 0.20), transparent 60%),
+    radial-gradient(800px 520px at 92% 2%, rgba(34, 211, 238, 0.16), transparent 60%),
+    radial-gradient(1100px 700px at 50% 120%, rgba(45, 212, 191, 0.10), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+body::before {  /* slow aurora drift behind everything */
+  content: ""; position: fixed; inset: -20%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(40% 30% at 30% 30%, rgba(129, 140, 248, 0.10), transparent 70%),
+    radial-gradient(35% 25% at 70% 60%, rgba(45, 212, 191, 0.08), transparent 70%);
+  filter: blur(40px);
+  animation: aurora 26s ease-in-out infinite alternate;
+}
+@keyframes aurora { to { transform: translate3d(4%, -3%, 0) rotate(8deg) scale(1.05); } }
+body[data-motion="off"]::before { animation: none; }
+
+/* --- glass surfaces ------------------------------------------------------------ */
+.panel, .agent, .card, .case, .lock-card, .protect .tile, .flow-side, .inbox-item {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shine), var(--lift);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.card { border-left-width: 3px; }
+.card.ALLOW { border-left-color: var(--green); }
+.card.STEP_UP { border-left-color: var(--amber); }
+.card.BLOCK { border-left-color: var(--red); }
+.card.CONTAIN { border-left-color: var(--crimson); background: linear-gradient(90deg, rgba(225, 29, 72, 0.18), rgba(10, 16, 30, 0.62) 45%); }
+.agent { border-top: 2px solid transparent; border-image: none; position: relative; overflow: hidden; }
+.agent::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--brand-grad); }
+.agent.contained::before { background: linear-gradient(90deg, #e11d48, #fb7185); }
+.agent.contained { background: linear-gradient(180deg, rgba(225, 29, 72, 0.16), rgba(10, 16, 30, 0.62) 50%); }
+.inbox-item { border-color: rgba(251, 191, 36, 0.4); background: linear-gradient(180deg, rgba(60, 44, 8, 0.45), rgba(10, 16, 30, 0.62)); }
+table.grid th, table.audit th { background: #0d1526; }
+.explain, .ev { background: rgba(18, 27, 46, 0.75); }
+.code { background: rgba(18, 27, 46, 0.8); }
+
+/* --- header and brand ------------------------------------------------------------ */
+.topbar { background: linear-gradient(180deg, rgba(8, 12, 22, 0.85), rgba(8, 12, 22, 0.35)); border-bottom-color: var(--glass-border); }
+.brand h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }
+.brand h1 { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand h1 .sub { -webkit-text-fill-color: var(--muted); color: var(--muted); font-weight: 500; }
+.brand-mark { filter: drop-shadow(0 0 14px rgba(45, 212, 191, 0.55)); }
+.brand-mark path:first-child { fill: rgba(45, 212, 191, 0.14); stroke: var(--teal); }
+.brand-mark .tick { stroke: var(--teal); }
+.chip { background: rgba(18, 27, 46, 0.6); border-color: var(--glass-border); backdrop-filter: blur(8px); }
+.chip.live .dot { background: var(--teal); box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.15), 0 0 10px rgba(45, 212, 191, 0.8); }
+.mode-pill.live { color: #99f6e4; border-color: rgba(45, 212, 191, 0.45); background: rgba(45, 212, 191, 0.08); }
+
+.story { background: rgba(5, 8, 17, 0.72); backdrop-filter: blur(12px); border-bottom-color: var(--glass-border); }
+.story a { transition: background 0.2s ease, color 0.2s ease; }
+.story a:hover { background: rgba(129, 140, 248, 0.12); }
+.story b { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+h2 .num { background: var(--brand-grad); color: #061018; font-weight: 800; box-shadow: 0 0 16px rgba(45, 212, 191, 0.35); }
+.act-head h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* --- buttons ---------------------------------------------------------------------- */
+.btn { border-color: var(--glass-border); background: rgba(18, 27, 46, 0.7); }
+.btn-ghost:hover { border-color: rgba(129, 140, 248, 0.5); box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.12); }
+.btn-attack { background: linear-gradient(100deg, #f43f5e, #fb923c); border: none; color: #fff; box-shadow: 0 10px 28px -10px rgba(244, 63, 94, 0.7); }
+.btn-attack:hover { background: linear-gradient(100deg, #fb7185, #fdba74); }
+.btn-approve { background: linear-gradient(100deg, #10b981, #2dd4bf); border: none; color: #022c22; box-shadow: 0 10px 28px -12px rgba(16, 185, 129, 0.8); }
+.btn-fire { background: rgba(225, 29, 72, 0.12); }
+.btn-link { background: none; border: none; }
+
+/* --- money tiles ------------------------------------------------------------------- */
+.protect .tile { position: relative; overflow: hidden; border-radius: 14px; padding: 12px 14px; }
+.protect .tile::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; opacity: 0.9; }
+.protect .tile.bad::before { background: linear-gradient(90deg, #f43f5e, #fb923c); }
+.protect .tile.warn::before { background: linear-gradient(90deg, #f59e0b, #fde047); }
+.protect .tile.ok::before { background: var(--brand-grad); }
+.protect .value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+
+/* --- the hero ----------------------------------------------------------------------- */
+.flow-stage {
+  border-color: var(--glass-border);
+  box-shadow: var(--shine), 0 30px 80px -40px rgba(34, 211, 238, 0.35);
+  background:
+    radial-gradient(ellipse 40% 55% at 50% 55%, rgba(45, 212, 191, 0.16), transparent 70%),
+    radial-gradient(ellipse 50% 70% at 0% 50%, rgba(129, 140, 248, 0.10), transparent 70%),
+    radial-gradient(ellipse 50% 70% at 100% 50%, rgba(34, 211, 238, 0.08), transparent 70%),
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(180deg, rgba(12, 19, 36, 0.9), rgba(6, 10, 20, 0.9));
+}
+.flow-head-c { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fnode { background: rgba(14, 22, 40, 0.82); border-color: var(--glass-border); box-shadow: var(--shine); }
+.fdot { background: var(--teal); box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.15), 0 0 12px rgba(45, 212, 191, 0.7); }
+.fpath { stroke: rgba(129, 140, 248, 0.22); }
+.fpath.live { stroke: rgba(34, 211, 238, 0.55); }
+.shield .ring { border-color: rgba(45, 212, 191, 0.35); }
+.shield .r2 { border-color: rgba(129, 140, 248, 0.18); border-top-color: rgba(34, 211, 238, 0.9); border-right-color: rgba(167, 139, 250, 0.7); }
+.shield .r3 { border-color: rgba(167, 139, 250, 0.22); }
+.shield::after { content: ""; position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(circle, rgba(45, 212, 191, 0.28), transparent 70%); filter: blur(6px); z-index: -1; }
+.shield-mark path:first-child { fill: rgba(45, 212, 191, 0.18); stroke: var(--teal); }
+.shield-mark .tick { stroke: #a7f3d0; }
+.fdot-pulse circle:last-child { fill: #a5b4fc; }
+
+.big-stat .big {
+  font-size: 46px; background: linear-gradient(100deg, #6ee7b7, #22d3ee 60%, #a5b4fc);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 22px rgba(45, 212, 191, 0.35)); text-shadow: none;
+}
+.flow-side { border-radius: 18px; }
+
+/* --- footer ------------------------------------------------------------------------ */
+.footer { background: rgba(8, 12, 22, 0.7); backdrop-filter: blur(10px); border-top-color: var(--glass-border); }

@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Warden</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/flow.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="/static/theme.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2334d399' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z'/%3E%3C/svg%3E">
 </head>
 <body data-mode="{{MODE}}">
@@ -25,6 +30,41 @@
       <button class="btn btn-link" id="btn-reset" hidden>Reset demo</button>
     </div>
   </header>
+
+  <section class="flow" id="flow" aria-label="Live money flow">
+    <div class="flow-stage" id="flow-stage">
+      <svg class="flow-svg" id="flow-svg" aria-hidden="true"></svg>
+      <svg class="flow-svg flow-dots-layer" id="flow-dots-svg" aria-hidden="true">
+        <defs><radialGradient id="glow"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+        <g id="flow-dots"></g>
+      </svg>
+      <div class="flow-head flow-head-l">AI agents</div>
+      <div class="flow-head flow-head-c">Warden</div>
+      <div class="flow-head flow-head-r">Money rails</div>
+      <div class="flow-col flow-agents" id="flow-agents"></div>
+      <div class="flow-core">
+        <div class="shield" id="shield">
+          <span class="ring r1"></span><span class="ring r2"></span><span class="ring r3"></span>
+          <svg viewBox="0 0 24 24" class="shield-mark"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+        </div>
+        <div class="shield-caption" id="shield-caption">checks every payment</div>
+      </div>
+      <div class="flow-col flow-rails" id="flow-rails"></div>
+      <div class="flow-pops" id="flow-pops"></div>
+    </div>
+    <aside class="flow-side">
+      <div class="big-stat">
+        <span class="label">Money protected</span>
+        <span class="big" id="big-protected">$0</span>
+        <span class="big-sub" id="big-sub"></span>
+      </div>
+      <ol class="ticker" id="ticker" aria-live="polite"></ol>
+      <div class="flow-buttons">
+        <button class="btn btn-ghost btn-sm" id="btn-replay">↻ Replay the last decisions</button>
+        <button class="btn btn-link btn-sm" id="btn-motion">Motion: on</button>
+      </div>
+    </aside>
+  </section>
 
   <section class="protect" id="protect" aria-label="Money protected"></section>
   <div id="passkey-banner" class="passkey-banner" hidden></div>

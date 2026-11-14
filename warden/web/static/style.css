@@ -208,7 +208,7 @@ table.audit td.mono { color: #9fb0c3; }
 
 /* --- story layout ------------------------------------------------------------ */
 .brand h1 .sub { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
-.tagline { max-width: 640px; }
+.tagline { max-width: 760px; }
 .head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .story {
   display: flex; gap: 6px; justify-content: center; padding: 10px 28px;

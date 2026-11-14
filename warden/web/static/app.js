@@ -109,7 +109,6 @@ function renderHeader() {
       <span class="value">${esc(money(v.amount ?? v))}</span><span class="note">${note}</span></div>`;
     const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
     $("protect").innerHTML = [
-      tile("hero", "Money protected", m.protected, "stopped + double payments + declined live + recovered"),
       tile("bad", "Stopped", m.stopped, `${n(m.stopped.count, "payment", "payments")} blocked or agent contained`),
       tile("bad", "Double payments prevented", m.double_payments, `${n(m.double_payments.count, "retry", "retries")} absorbed`),
       tile("bad", "Declined in real time", m.declined_live, `${n(m.declined_live.count, "card charge", "card charges")} without a receipt`),
@@ -286,7 +285,7 @@ function execution(decision) {
 function containment(decision) {
   const c = decision?.containment;
   if (!c) return "";
-  const parts = Object.entries(c).map(([rail, r]) => `<span class="bad">${esc(rail)}: ${esc(r?.status ?? r?.card_status ?? "done")}</span>`);
+  const parts = Object.entries(c).map(([rail, r]) => `<span class="bad">${esc(rail === "metal" ? "alta" : rail)}: ${esc(r?.status ?? r?.card_status ?? "done")}</span>`);
   return `<div class="result"><span class="held">Kill switch:</span>${parts.join("")}</div>`;
 }
 
@@ -589,7 +588,269 @@ async function loadScorecard() {
     <span class="muted small">attack gauntlet on simulated rails · ${data.rows.length} scenarios</span>`;
 }
 
+// --- live money flow ------------------------------------------------------------
+// Every pulse is a real decision from the feed: agent -> Warden -> rail when allowed,
+// stopped at the shield when blocked, parked at the shield when a human must decide.
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const FLOW_RAILS = [
+  { kind: "transfer", name: "Airwallex", sub: "bank transfer" },
+  { kind: "card", name: "Airwallex", sub: "virtual card" },
+  { kind: "vic_checkout", name: "Visa VIC · Airi", sub: "agent checkout" },
+  { kind: "x402", name: "Alta", sub: "x402 on-chain (formerly Metal)" },
+];
+const FLOW_TONE = { ALLOW: "ok", BLOCK: "bad", CONTAIN: "crit", STEP_UP: "hold" };
+// Honour the OS "reduce motion" setting unless the viewer switches motion on (remembered).
+let reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+try {
+  const saved = localStorage.getItem("warden-motion");
+  if (saved) reduceMotion = saved === "off";
+} catch { /* storage blocked: keep the OS setting */ }
+function applyMotion() {
+  document.body.dataset.motion = reduceMotion ? "off" : "on";
+  $("btn-motion").textContent = reduceMotion ? "Motion: off" : "Motion: on";
+}
+const flow = { seen: new Set(), queue: [], draining: false, shown: 0, primed: false };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function flowKey(item) {
+  return `${item.proposal.id}:${item.pending ? "STEP_UP" : item.decision?.action || ""}`;
+}
+
+function flowAction(item) {
+  return item.pending ? "STEP_UP" : item.decision?.action;
+}
+
+function toneOf(item) {
+  const action = flowAction(item);
+  return action === "ALLOW" && !landed(item) ? "hold" : FLOW_TONE[action] || "hold";
+}
+
+function landed(item) {  // allowed AND the rail actually executed it
+  const ex = item.decision?.execution;
+  return item.decision?.action === "ALLOW" && !!ex && !/DECLINED|ERROR|NO_RAIL/.test(ex.status || "");
+}
+
+function renderFlowNodes() {
+  const paid = {};
+  for (const i of state.feed) {
+    if (landed(i)) {
+      const r = (paid[i.proposal.rail] ||= { n: 0, amount: 0 });
+      r.n += 1;
+      r.amount += Number(i.proposal.amount) || 0;
+    }
+  }
+  $("flow-agents").innerHTML = state.agents.map((a) => `
+    <div class="fnode agent-node ${a.contained ? "contained" : ""}" data-agent="${esc(a.id)}">
+      <span class="fdot"></span>
+      <div><b>${esc(a.id)}</b><small>${a.contained ? "fired · contained on every rail" : `trust ${Math.round(a.trust * 100)} · ${esc(money(a.spent_week))} of ${esc(money(a.weekly_cap))}`}</small></div>
+    </div>`).join("") || `<div class="fnode"><small>No agents hired yet</small></div>`;
+  $("flow-rails").innerHTML = FLOW_RAILS.map((r) => {
+    const p = paid[r.kind];
+    return `<div class="fnode rail-node" data-rail="${r.kind}">
+      <span class="ic"><svg viewBox="0 0 24 24">${RAILS[r.kind].icon}</svg></span>
+      <div><b>${esc(r.name)}</b><small>${esc(r.sub)}</small></div>
+      <span class="rail-count" title="paid through this rail">${p ? `${p.n} · ${esc(money(p.amount))}` : "–"}</span>
+    </div>`;
+  }).join("");
+  const shape = state.agents.map((a) => `${a.id}:${a.contained}`).join("|");
+  if (shape !== flow.shape) {  // paths move only when the cast changes; pulses in flight keep theirs
+    flow.shape = shape;
+    drawFlowPaths();
+  }
+}
+
+function anchorOf(el, side) {
+  const s = $("flow-stage").getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return { x: (side === "right" ? r.right : r.left) - s.left, y: r.top + r.height / 2 - s.top };
+}
+
+function curve(a, b) {
+  const dx = Math.max(40, (b.x - a.x) * 0.55);
+  return `M${a.x},${a.y} C${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}`;
+}
+
+function drawFlowPaths() {
+  const svg = $("flow-svg");
+  const stage = $("flow-stage").getBoundingClientRect();
+  if (!stage.width) return;
+  svg.setAttribute("viewBox", `0 0 ${stage.width} ${stage.height}`);
+  const shield = $("shield");
+  const sIn = anchorOf(shield, "left");
+  const sOut = anchorOf(shield, "right");
+  sIn.x += 18; sOut.x -= 18;
+  const paths = [];
+  document.querySelectorAll("#flow-agents .agent-node").forEach((n) => {
+    paths.push(`<path class="fpath ${n.classList.contains("contained") ? "dead" : ""}" id="in-${esc(n.dataset.agent)}" d="${curve(anchorOf(n, "right"), sIn)}"/>`);
+  });
+  document.querySelectorAll("#flow-rails .rail-node").forEach((n) => {
+    paths.push(`<path class="fpath" id="out-${n.dataset.rail}" d="${curve(sOut, anchorOf(n, "left"))}"/>`);
+  });
+  $("flow-dots-svg").setAttribute("viewBox", `0 0 ${stage.width} ${stage.height}`);
+  svg.innerHTML = `<g class="fpaths">${paths.join("")}</g>
+    <g class="flive">${paths.map((p) => p.replace('class="fpath', 'class="fpath live').replace(/id="[^"]*"/, "")).join("")}</g>`;
+}
+
+function travel(path, dot, ms) {
+  return new Promise((resolve) => {
+    if (!path) return resolve();
+    const length = path.getTotalLength();
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / ms);
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const pt = path.getPointAtLength(length * e);
+      dot.setAttribute("transform", `translate(${pt.x},${pt.y})`);
+      k < 1 ? requestAnimationFrame(step) : resolve();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+function pop(x, y, html, tone) {
+  const el = document.createElement("div");
+  el.className = `pop ${tone}`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.innerHTML = html;
+  $("flow-pops").appendChild(el);
+  setTimeout(() => el.remove(), 3400);
+}
+
+function flash(el, cls, ms = 900) {
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), ms);
+}
+
+function reasonOf(item) {
+  const d = item.decision;
+  if (item.pending) return "waiting for you";
+  if (!d) return "";
+  if (d.action === "ALLOW") return (RAILS[item.proposal.rail] || {}).label || item.proposal.rail;
+  const v = d.violations[0] || d.risk?.flags?.[0];
+  return v ? v.replaceAll("_", " ").toLowerCase() : "stopped";
+}
+
+function addTicker(item) {
+  const action = flowAction(item);
+  const p = item.proposal;
+  const li = document.createElement("li");
+  li.className = toneOf(item);
+  const word = { ALLOW: landed(item) ? "Paid" : "Allowed", BLOCK: "Blocked", CONTAIN: "Fired", STEP_UP: "Held" }[action] || action;
+  li.innerHTML = `<span class="tk-badge">${esc(word)}</span>
+    <span class="tk-main"><b>${esc(money(p.amount, p.currency))}</b> ${esc(p.payee_name)}<small>${esc(p.agent_id)} · ${esc(reasonOf(item))}</small></span>`;
+  const list = $("ticker");
+  list.prepend(li);
+  while (list.children.length > 6) list.lastElementChild.remove();
+}
+
+async function animateDecision(item) {
+  const action = flowAction(item);
+  const tone = toneOf(item);
+  const p = item.proposal;
+  addTicker(item);
+  if (reduceMotion || !$("flow-svg").getBBox) return;
+  const dots = $("flow-dots");
+  if (!dots) return;
+  const dot = document.createElementNS(SVG_NS, "g");
+  dot.setAttribute("class", `fdot-pulse ${tone === "ok" ? "" : "pending"}`);
+  dot.innerHTML = `<circle r="16" fill="url(#glow)" opacity=".35"/><circle r="6"/>`;
+  dots.appendChild(dot);
+  flash(document.querySelector(`.agent-node[data-agent="${CSS.escape(p.agent_id)}"]`), "emit", 700);
+  await travel(document.getElementById(`in-${p.agent_id}`), dot, 900);
+  const shield = $("shield");
+  const at = anchorOf(shield, "left");
+  dot.setAttribute("class", `fdot-pulse ${tone}`);
+  flash(shield, `hit-${tone}`, 1000);
+  if (action === "ALLOW" && landed(item)) {
+    await travel(document.getElementById(`out-${p.rail}`), dot, 800);
+    const rail = document.querySelector(`.rail-node[data-rail="${p.rail}"]`);
+    flash(rail, "landed", 1200);
+    if (rail) {
+      const r = anchorOf(rail, "left");
+      pop(r.x + 70, r.y - 30, `✓ ${esc(money(p.amount, p.currency))} paid`, "ok");
+    }
+    dot.remove();
+  } else {
+    const label = action === "STEP_UP" ? "held for a human" : action === "CONTAIN" ? "agent fired"
+      : action === "ALLOW" ? "rail refused" : "blocked";
+    pop(at.x - 6, at.y - 46 + (flow.shown++ % 3) * 22,
+      `${action === "STEP_UP" ? "⏸" : "✕"} ${esc(money(p.amount, p.currency))} ${esc(p.payee_name)} · <b>${esc(label)}</b><small>${esc(reasonOf(item))}</small>`, tone);
+    if (action === "CONTAIN") flash(document.querySelector(`.agent-node[data-agent="${CSS.escape(p.agent_id)}"]`), "struck", 1600);
+    dot.classList.add("burst");
+    await sleep(600);
+    dot.remove();
+  }
+}
+
+async function drainFlow(gap) {
+  if (flow.draining) return;
+  flow.draining = true;
+  while (flow.queue.length) {
+    animateDecision(flow.queue.shift());
+    await sleep(reduceMotion ? 0 : gap);
+  }
+  flow.draining = false;
+}
+
+function countUp(el, to) {
+  const from = Number(el.dataset.v || 0);
+  el.dataset.v = to;
+  if (reduceMotion || from === to) { el.textContent = money(to); return; }
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / 1400);
+    el.textContent = money(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function renderFlow() {
+  renderFlowNodes();
+  const m = state.protection;
+  if (m) {
+    countUp($("big-protected"), Number(m.protected));
+    $("big-sub").innerHTML = `<span class="${Number(m.lost.amount) ? "bad" : "ok"}">${esc(money(m.lost.amount))} lost</span>
+      · ${esc(money(m.paid.amount))} paid within mandate · ${state.receipts.count} signed receipts`;
+  }
+  const decided = state.feed.filter((i) => i.pending || i.decision);
+  if (!flow.primed) {  // first paint: replay the recent story so the page opens in motion
+    flow.primed = true;
+    decided.forEach((i) => flow.seen.add(flowKey(i)));
+    replayFlow();
+    return;
+  }
+  const fresh = decided.filter((i) => !flow.seen.has(flowKey(i))).reverse();
+  fresh.forEach((i) => flow.seen.add(flowKey(i)));
+  flow.queue.push(...fresh);
+  drainFlow(700);
+}
+
+function replayFlow() {
+  const recent = state.feed.filter((i) => i.pending || i.decision).slice(0, 10).reverse();
+  $("ticker").innerHTML = "";
+  flow.queue = recent;
+  setTimeout(() => drainFlow(1600), 400);
+}
+
+$("btn-replay").addEventListener("click", () => { if (!flow.draining) replayFlow(); });
+$("btn-motion").addEventListener("click", () => {
+  reduceMotion = !reduceMotion;
+  try { localStorage.setItem("warden-motion", reduceMotion ? "off" : "on"); } catch { /* not remembered */ }
+  applyMotion();
+  if (!reduceMotion && !flow.draining) replayFlow();
+});
+applyMotion();
+window.addEventListener("load", drawFlowPaths);
+window.addEventListener("resize", () => { clearTimeout(drawFlowPaths.t); drawFlowPaths.t = setTimeout(drawFlowPaths, 120); });
+
 function render() {
+  renderFlow();
   renderHeader();
   renderAgents();
   renderFeed();
