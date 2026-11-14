@@ -326,17 +326,32 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
 def _page(title: str, body: str) -> str:
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(title)} · Warden</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="/static/theme.js?v=2"></script><link rel="stylesheet" href="/static/theme-toggle.css?v=2">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>{_CSS}</style></head><body><main>
-<header><a href="/verify" class="brand">Warden <span>Receipt verification</span></a>
+<header><div class="top"><a href="/verify" class="brand">Warden <span>Receipt verification</span></a>
+<nav><a href="/">Story</a><a href="/console">Console</a><button class="theme-toggle" type="button" aria-label="Switch theme">
+<span class="tt-opt tt-dark"><svg viewBox="0 0 24 24"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg></span>
+<span class="tt-opt tt-light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg></span>
+</button></nav></div>
 <p class="muted">Check any Intent Receipt without trusting Warden: the signature, the chain and, for Alta payments, the chain itself.</p></header>
 {body}</main></body></html>"""
 
 
 _CSS = """
-:root { --bg:#0b0f14; --surface:#121821; --surface-2:#18202b; --border:#232d3a; --text:#e6edf3; --muted:#8b98a8;
-  --green:#34d399; --green-bg:rgba(52,211,153,.12); --amber:#fbbf24; --red:#f87171; --red-bg:rgba(248,113,113,.12);
-  --crimson:#e11d48; --crimson-bg:rgba(225,29,72,.16); --blue:#60a5fa; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace; }
+:root { --bg:#050607; --surface:#0d1013; --surface-2:#15191e; --border:rgba(243,239,230,.1); --text:#f3efe6; --muted:#8f8b82;
+  --green:#2bd4a4; --green-bg:rgba(43,212,164,.12); --amber:#ffb547; --red:#ff5a47; --red-bg:rgba(255,90,71,.12);
+  --crimson:#ff3d71; --crimson-bg:rgba(255,61,113,.14); --blue:#8ab4ff; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark }
+:root[data-theme="light"] { --bg:#f7f5f0; --surface:#ffffff; --surface-2:#f3f0e8; --border:#e7e2d8; --text:#15171c; --muted:#6c7079;
+  --green:#13815e; --green-bg:#e5f3ec; --amber:#b3741a; --red:#c2392c; --red-bg:#fbebe7; --crimson:#a3123a; --crimson-bg:#fce7ed;
+  --blue:#2a56c4; color-scheme:light }
+header .top { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap }
+header nav { display:flex; align-items:center; gap:16px; font-size:14px } header nav a { color:var(--muted); text-decoration:none }
+header nav a:hover { color:var(--text) }
+.brand { font-family:"Instrument Serif",Georgia,serif; font-weight:400 !important; font-size:30px !important }
+.brand span { font-family:Inter,system-ui,sans-serif }
+.theme-toggle { --tt-line:var(--border); --tt-bg:var(--surface); --tt-ink:var(--muted); --tt-knob:var(--surface-2); --tt-active:var(--green) }
 * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--text);
   font:15px/1.5 Inter,system-ui,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased }
 main { max-width:920px; margin:0 auto; padding:32px 20px 64px }
@@ -344,8 +359,8 @@ header { margin-bottom:20px } .brand { color:var(--text); text-decoration:none; 
 .brand span { color:var(--muted); font-weight:400; margin-left:8px; font-size:16px }
 h2 { font-size:16px; font-weight:600; margin:0 0 12px } a { color:var(--blue) }
 .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px }
-.verdict.ok { border-color:rgba(52,211,153,.45) } .verdict.ok h2 { color:var(--green) }
-.verdict.bad { border-color:rgba(248,113,113,.5) } .verdict.bad h2 { color:var(--red) }
+.verdict.ok { border-color:var(--green) } .verdict.ok h2 { color:var(--green) }
+.verdict.bad { border-color:var(--red) } .verdict.bad h2 { color:var(--red) }
 .muted { color:var(--muted) } .mono { font-family:var(--mono); font-size:13px; word-break:break-all }
 .check { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:8px 10px; border-radius:8px;
   background:var(--surface-2); margin-bottom:6px } .check b { min-width:110px }
@@ -355,7 +370,7 @@ h2 { font-size:16px; font-weight:600; margin:0 0 12px } a { color:var(--blue) }
 .kv span:first-child { color:var(--muted) }
 .badge { font-size:12px; font-weight:600; padding:2px 8px; border-radius:6px; background:var(--surface-2) }
 .badge.allow { color:var(--green); background:var(--green-bg) } .badge.block { color:var(--red); background:var(--red-bg) }
-.badge.contain { color:#fda4af; background:var(--crimson-bg) }
+.badge.contain { color:var(--crimson); background:var(--crimson-bg) }
 .rows .row { display:grid; grid-template-columns:90px 190px 110px 1fr 140px; gap:10px; padding:8px 6px;
   border-bottom:1px solid var(--border); color:var(--text); text-decoration:none; align-items:center }
 .rows .row:hover { background:var(--surface-2) }

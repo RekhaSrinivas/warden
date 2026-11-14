@@ -39,6 +39,7 @@ from warden.web.verify import create_verify_router
 
 HERE = Path(__file__).resolve().parent
 WEEK = 7 * 24 * 3600
+ASSET_VERSION = str(int(time.time()))  # cache-buster for /static links, new on every start
 TAGLINE = "Warden doesn't ask you to trust your AI agents. It makes that trust enforceable, revocable, and verifiable."
 
 # Rail kinds grouped the way a finance team thinks about them.
@@ -510,7 +511,7 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         html = (HERE / "templates" / template).read_text(encoding="utf-8")
         initial = json.dumps(board().state()).replace("</", "<\\/")
         return html.replace("{{MODE}}", board().mode).replace("{{TAGLINE}}", TAGLINE) \
-                   .replace("{{INITIAL_STATE}}", initial)
+                   .replace("{{V}}", ASSET_VERSION).replace("{{INITIAL_STATE}}", initial)
 
     @app.get("/", response_class=HTMLResponse)
     def story() -> str:

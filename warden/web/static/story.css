@@ -285,3 +285,45 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
   .scene.threat { --h: 240vh !important; }
   .d-shield { width: 130px; height: 130px; }
 }
+
+/* --- light theme ------------------------------------------------------------------------ */
+:root[data-theme="light"] {
+  --bg: #f7f5f0;
+  --bg-2: #ffffff;
+  --ink: #15171c;
+  --ink-2: #3a3f48;
+  --muted: #6c7079;
+  --line: rgba(21, 23, 28, 0.10);
+  --line-2: rgba(21, 23, 28, 0.18);
+  --green: #0f8a68;
+  --green-deep: #0f6e56;
+  --red: #c2392c;
+  --amber: #b3741a;
+  --rose: #c0144a;
+  color-scheme: light;
+}
+:root[data-theme="light"] .nav { background: linear-gradient(180deg, rgba(247, 245, 240, 0.92), rgba(247, 245, 240, 0)); }
+:root[data-theme="light"] .nav-cta:hover { background: #2b2f37; }
+:root[data-theme="light"] .hero::before { background: radial-gradient(60% 55% at 50% 42%, rgba(15, 138, 104, 0.10), transparent 70%); }
+:root[data-theme="light"] .hero-rails span, :root[data-theme="light"] .node { background: rgba(255, 255, 255, 0.85); }
+:root[data-theme="light"] .hero-rails i, :root[data-theme="light"] .node i { box-shadow: none; }
+:root[data-theme="light"] .mail, :root[data-theme="light"] .rcpt:not(.end) { background: #fff; box-shadow: 0 30px 80px -40px rgba(23, 20, 12, 0.35), 0 0 0 1px var(--line); }
+:root[data-theme="light"] .rcpt::after { background: radial-gradient(circle at 6px 0, transparent 6px, #fff 6.5px) 0 0 / 12px 8px repeat-x; }
+:root[data-theme="light"] .code { background: #fbebe7; color: #a3170a; border-color: #f0c4bb; }
+:root[data-theme="light"] .code.soft { background: #fbf1dc; color: #8a5a0b; border-color: #ecd9ae; }
+:root[data-theme="light"] .packet { box-shadow: 0 10px 40px -10px rgba(23, 20, 12, 0.4); }
+:root[data-theme="light"] .d-shield svg, :root[data-theme="light"] .hero-shield svg, :root[data-theme="light"] .close-shield svg { filter: drop-shadow(0 10px 24px rgba(15, 110, 86, 0.35)); }
+:root[data-theme="light"] .d-shield.hit svg { filter: drop-shadow(0 10px 30px rgba(194, 57, 44, 0.5)); }
+:root[data-theme="light"] .ring { border-color: rgba(15, 110, 86, 0.22); }
+:root[data-theme="light"] .ring.r3 { border-color: rgba(21, 23, 28, 0.06); }
+:root[data-theme="light"] .pill, :root[data-theme="light"] .btn.primary { color: #fff; }
+:root[data-theme="light"] .btn.primary:hover { background: #0b6f53; }
+:root[data-theme="light"] .col .node.rail.landed { box-shadow: 0 0 0 1px var(--green), 0 12px 30px -12px rgba(15, 138, 104, 0.5); }
+:root[data-theme="light"] .chain-stamp { color: var(--rose); background: #fce7ed; }
+:root[data-theme="light"] .vcard { box-shadow: 0 40px 90px -40px rgba(15, 110, 86, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+:root[data-theme="light"] .num { background: var(--bg-2); }
+:root[data-theme="light"] .close { background: radial-gradient(60% 50% at 50% 40%, rgba(15, 138, 104, 0.10), transparent 70%); }
+:root[data-theme="light"] .agent-says { background: #15171c; }
+
+/* the switch, in the story's colours */
+.theme-toggle { --tt-line: var(--line-2); --tt-bg: transparent; --tt-ink: var(--ink-2); --tt-knob: var(--line-2); --tt-active: var(--green); }

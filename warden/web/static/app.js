@@ -99,7 +99,8 @@ function renderHeader() {
     .map((r) => `<span class="chip ${esc(r.status.split(" ")[0])}"><span class="dot"></span>${esc(r.label)}<span class="state">${esc(word[r.status] || r.status)}</span></span>`)
     .join("");
   const pill = $("mode-pill");
-  pill.textContent = state.mode === "live" ? "Live · Airwallex sandbox · Alta testnet (formerly Metal) · Claude" : "Offline demo · simulated rails";
+  pill.textContent = state.mode === "live" ? "Live sandbox" : "Offline demo";
+  pill.title = state.mode === "live" ? "Live: Airwallex sandbox, Visa VIC via Airi, Alta testnet (formerly Metal), Claude" : "Offline demo: every rail simulated";
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
   $("btn-reset").hidden = state.mode === "live";
   $("btn-locks").hidden = state.mode === "live";

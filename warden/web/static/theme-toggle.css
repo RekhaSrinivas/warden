@@ -1,0 +1,21 @@
+/* The moon / sun switch shared by every page. Colours come from the page via --tt-* fallbacks. */
+.theme-toggle {
+  position: relative; display: inline-flex; align-items: center; gap: 0; padding: 3px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--tt-line, rgba(127, 127, 127, 0.3)); background: var(--tt-bg, transparent); color: var(--tt-ink, currentColor);
+  font: inherit; line-height: 0; flex: none;
+}
+.theme-toggle::before {  /* the sliding highlight */
+  content: ""; position: absolute; top: 3px; left: 3px; width: 30px; height: 26px; border-radius: 999px;
+  background: var(--tt-knob, rgba(127, 127, 127, 0.22)); transition: transform 0.35s cubic-bezier(.3, .8, .3, 1.2);
+}
+:root[data-theme="light"] .theme-toggle::before { transform: translateX(30px); }
+.theme-toggle .tt-opt { position: relative; z-index: 1; width: 30px; height: 26px; display: grid; place-items: center; opacity: 0.55; transition: opacity 0.25s ease, color 0.25s ease; }
+.theme-toggle svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+:root[data-theme="dark"] .theme-toggle .tt-dark,
+:root[data-theme="light"] .theme-toggle .tt-light { opacity: 1; color: var(--tt-active, currentColor); }
+:root[data-theme="dark"] .theme-toggle .tt-dark svg { fill: currentColor; }
+.theme-toggle:focus-visible { outline: 2px solid var(--tt-active, currentColor); outline-offset: 2px; }
+
+.theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, fill 0.4s ease, stroke 0.4s ease !important;
+}

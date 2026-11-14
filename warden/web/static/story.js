@@ -85,7 +85,7 @@ document.querySelectorAll(".reveal, #num-grid").forEach((el) => io.observe(el));
     d.x = cx + Math.cos(a) * r; d.y = cy + Math.sin(a) * r * 0.7;
     d.s = 0.0016 + Math.random() * 0.0028; d.t = 0; d.x0 = d.x; d.y0 = d.y;
     d.r = Math.random() < 0.12 ? 2.2 : 1 + Math.random();
-    d.hue = Math.random() < 0.8 ? "43,212,164" : "243,239,230";
+    d.warm = Math.random() >= 0.8;
     d.curve = (Math.random() - 0.5) * 0.9;
     return d;
   }
@@ -101,7 +101,8 @@ document.querySelectorAll(".reveal, #num-grid").forEach((el) => io.observe(el));
       const x = mx + bend * -(d.y0 - cy) / 600, y = my + bend * (d.x0 - cx) / 600;
       const alpha = Math.sin(d.t * Math.PI) * 0.85;
       ctx.beginPath();
-      ctx.fillStyle = `rgba(${d.hue},${alpha})`;
+      const light = document.documentElement.dataset.theme === "light";
+      ctx.fillStyle = `rgba(${d.warm ? (light ? "21,23,28" : "243,239,230") : (light ? "15,138,104" : "43,212,164")},${alpha})`;
       ctx.arc(x, y, d.r * (1 - t * 0.5), 0, Math.PI * 2);
       ctx.fill();
     }
