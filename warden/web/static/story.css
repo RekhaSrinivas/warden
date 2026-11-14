@@ -53,16 +53,16 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .hero .pin { align-items: center; text-align: center; padding-top: 70px; }
 #particles { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.9; }
 .hero::before { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(60% 55% at 50% 42%, rgba(43, 212, 164, 0.13), transparent 70%); }
+  background: radial-gradient(60% 55% at 50% 42%, rgba(34, 211, 238, 0.13), transparent 70%); }
 .hero-shield { position: relative; width: 168px; height: 168px; display: grid; place-items: center; margin-bottom: 26px;
   transform: translateY(calc(var(--p, 0) * -40px)) scale(calc(1 + var(--p, 0) * 0.35)); }
-.hero-shield svg { width: 78px; height: 78px; position: relative; z-index: 2; filter: drop-shadow(0 0 30px rgba(43, 212, 164, 0.55)); }
+.hero-shield svg { width: 78px; height: 78px; position: relative; z-index: 2; filter: drop-shadow(0 0 30px rgba(34, 211, 238, 0.55)); }
 .hero-shield svg path:first-child { fill: var(--green-deep); stroke: var(--green); }
 .hero-shield .tick { stroke: #fff; stroke-width: 2.3; }
-.hero-shield .halo { position: absolute; inset: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(43, 212, 164, 0.22), transparent 65%); animation: breathe 5s ease-in-out infinite; }
-.ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(43, 212, 164, 0.25); }
+.hero-shield .halo { position: absolute; inset: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(34, 211, 238, 0.22), transparent 65%); animation: breathe 5s ease-in-out infinite; }
+.ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(34, 211, 238, 0.25); }
 .ring.r1 { border-style: dashed; animation: spin 30s linear infinite; }
-.ring.r2 { inset: 18px; border-color: rgba(43, 212, 164, 0.12); border-top-color: var(--green); animation: spin 5s linear infinite; }
+.ring.r2 { inset: 18px; border-color: rgba(34, 211, 238, 0.12); border-top-color: var(--green); animation: spin 5s linear infinite; }
 .ring.r3 { inset: -26px; border-color: rgba(243, 239, 230, 0.06); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes breathe { 50% { transform: scale(1.12); opacity: 0.7; } }
@@ -126,7 +126,7 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .node.rail { justify-self: end; }
 .node.rail.dim { opacity: 0.35; }
 .d-shield { position: relative; z-index: 2; width: 190px; height: 190px; display: grid; place-items: center; }
-.d-shield svg { width: 84px; height: 84px; transition: filter 0.3s ease; filter: drop-shadow(0 0 26px rgba(43, 212, 164, 0.5)); }
+.d-shield svg { width: 84px; height: 84px; transition: filter 0.3s ease; filter: drop-shadow(0 0 26px rgba(34, 211, 238, 0.5)); }
 .d-shield svg path:first-child { fill: var(--green-deep); stroke: var(--green); transition: fill 0.3s ease, stroke 0.3s ease; }
 .d-shield .tick { stroke: #fff; stroke-width: 2.3; transition: opacity 0.2s ease; }
 .d-shield .cross { stroke: #fff; stroke-width: 2.4; opacity: 0; transition: opacity 0.2s ease; }
@@ -137,7 +137,7 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .d-shield.hit .ring { border-color: rgba(255, 90, 71, 0.35); }
 .d-shield.small { width: 150px; height: 150px; }
 .d-shield.small svg { width: 64px; height: 64px; }
-.d-shield.pass svg { filter: drop-shadow(0 0 40px rgba(43, 212, 164, 1)); }
+.d-shield.pass svg { filter: drop-shadow(0 0 40px rgba(34, 211, 238, 1)); }
 @keyframes thump { 30% { transform: scale(1.12); } 60% { transform: scale(0.97); } }
 .packet { position: absolute; z-index: 3; left: 0; top: 0; padding: 8px 14px; border-radius: 12px; background: var(--ink); color: var(--bg);
   transform: translate(-50%, -50%); box-shadow: 0 0 0 6px rgba(255, 181, 71, 0.12), 0 10px 40px rgba(255, 181, 71, 0.25); white-space: nowrap; opacity: 0; }
@@ -226,8 +226,8 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 .card-wrap { position: relative; display: grid; place-items: center; min-height: 360px; }
 .vcard { position: relative; width: min(420px, 100%); aspect-ratio: 1.586; border-radius: 22px; padding: 26px 28px; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between; color: #fff;
-  background: radial-gradient(120% 140% at 0% 0%, #1fb489 0%, #0f6e56 45%, #062f26 100%);
-  box-shadow: 0 50px 120px -40px rgba(43, 212, 164, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: radial-gradient(120% 140% at 0% 0%, #4b5563 0%, #1f2937 45%, #0b0f14 100%);
+  box-shadow: 0 50px 120px -40px rgba(34, 211, 238, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transform: perspective(900px) rotateY(calc(-14deg + var(--p, 0) * 14deg)) rotateX(6deg); transition: filter 0.6s ease; }
 .vcard::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 45%, transparent 60%);
   transform: translateX(calc(-60% + var(--p, 0) * 120%)); }
@@ -249,14 +249,14 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var
 
 /* --- 7 close -------------------------------------------------------------------------- */
 .close { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-  padding: 16vh clamp(18px, 5vw, 72px); background: radial-gradient(60% 50% at 50% 40%, rgba(43, 212, 164, 0.12), transparent 70%); }
-.close-shield svg { width: 72px; height: 72px; filter: drop-shadow(0 0 30px rgba(43, 212, 164, 0.6)); }
+  padding: 16vh clamp(18px, 5vw, 72px); background: radial-gradient(60% 50% at 50% 40%, rgba(34, 211, 238, 0.12), transparent 70%); }
+.close-shield svg { width: 72px; height: 72px; filter: drop-shadow(0 0 30px rgba(34, 211, 238, 0.6)); }
 .quote { margin: 30px 0 0; max-width: 1100px; font-family: var(--serif); font-weight: 400; font-size: clamp(34px, 4.4vw, 70px); line-height: 1.08; letter-spacing: -0.02em; }
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 44px; }
 .btn { padding: 14px 24px; border-radius: 999px; border: 1px solid var(--line-2); font-weight: 600; font-size: 15px; transition: all 0.2s ease; }
 .btn:hover { border-color: var(--ink); }
 .btn.primary { background: var(--green); border-color: var(--green); color: #032119; }
-.btn.primary:hover { background: #5be3bd; }
+.btn.primary:hover { background: #ffffff; }
 .fine { margin-top: 36px; color: var(--muted); font-size: 14px; max-width: 640px; }
 
 /* --- reveal-on-view --------------------------------------------------------------------- */
@@ -304,7 +304,7 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
 }
 :root[data-theme="light"] .nav { background: linear-gradient(180deg, rgba(247, 245, 240, 0.92), rgba(247, 245, 240, 0)); }
 :root[data-theme="light"] .nav-cta:hover { background: #2b2f37; }
-:root[data-theme="light"] .hero::before { background: radial-gradient(60% 55% at 50% 42%, rgba(15, 138, 104, 0.10), transparent 70%); }
+:root[data-theme="light"] .hero::before { background: radial-gradient(60% 55% at 50% 42%, rgba(8, 145, 178, 0.10), transparent 70%); }
 :root[data-theme="light"] .hero-rails span, :root[data-theme="light"] .node { background: rgba(255, 255, 255, 0.85); }
 :root[data-theme="light"] .hero-rails i, :root[data-theme="light"] .node i { box-shadow: none; }
 :root[data-theme="light"] .mail, :root[data-theme="light"] .rcpt:not(.end) { background: #fff; box-shadow: 0 30px 80px -40px rgba(23, 20, 12, 0.35), 0 0 0 1px var(--line); }
@@ -322,7 +322,7 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
 :root[data-theme="light"] .chain-stamp { color: var(--rose); background: #fce7ed; }
 :root[data-theme="light"] .vcard { box-shadow: 0 40px 90px -40px rgba(15, 110, 86, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
 :root[data-theme="light"] .num { background: var(--bg-2); }
-:root[data-theme="light"] .close { background: radial-gradient(60% 50% at 50% 40%, rgba(15, 138, 104, 0.10), transparent 70%); }
+:root[data-theme="light"] .close { background: radial-gradient(60% 50% at 50% 40%, rgba(8, 145, 178, 0.10), transparent 70%); }
 :root[data-theme="light"] .agent-says { background: #15171c; }
 
 /* the switch, in the story's colours */

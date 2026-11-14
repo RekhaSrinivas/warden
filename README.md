@@ -10,7 +10,7 @@ or **fire the agent on every rail at once**. Each decision leaves an Ed25519-sig
 anyone can verify. Card charges that bypass Warden are caught by reconciliation and disputed.
 
 It runs on real rails: **Airwallex** (bank transfers and issued cards), **Visa Intelligent Commerce via Airi**
-(agent checkout confirmed with a passkey), and **Alta** (formerly Metal; x402 pay-per-call and on-chain mandates).
+(agent checkout confirmed with a passkey), and **Alta** (x402 pay-per-call and on-chain mandates).
 
 Built solo for the Airwallex Agentic Banking Hackathon.
 

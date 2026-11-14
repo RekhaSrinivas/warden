@@ -3,15 +3,15 @@
 
 :root {
   --tour-dim: rgba(21, 23, 28, 0.5);
-  --tour-ring: #0f6e56;
-  --tour-halo: rgba(43, 212, 164, 0.5);
+  --tour-ring: #0e7490;
+  --tour-halo: rgba(8, 145, 178, 0.5);
   --tour-glow: rgba(15, 110, 86, 0.25);
 }
 :root[data-theme="dark"] {
   --tour-dim: rgba(0, 0, 0, 0.62);
-  --tour-ring: #2bd4a4;
-  --tour-halo: rgba(43, 212, 164, 0.22);
-  --tour-glow: rgba(43, 212, 164, 0.32);
+  --tour-ring: #22d3ee;
+  --tour-halo: rgba(34, 211, 238, 0.22);
+  --tour-glow: rgba(34, 211, 238, 0.32);
 }
 
 /* --- the header button, a sibling of the theme switch ------------------------------------------- */
@@ -37,7 +37,7 @@
 
 /* --- the card ----------------------------------------------------------------------------------- */
 .tour-card {
-  --tc-bg: #12161a; --tc-line: rgba(243, 239, 230, 0.14); --tc-ink: #f3efe6; --tc-muted: #aaa598; --tc-accent: #2bd4a4;
+  --tc-bg: #12161a; --tc-line: rgba(243, 239, 230, 0.14); --tc-ink: #f3efe6; --tc-muted: #aaa598; --tc-accent: #22d3ee;
   position: fixed; top: 0; left: 0; z-index: 1001; box-sizing: border-box; width: 360px; padding: 16px 18px 14px;
   border-radius: 14px; background: var(--tc-bg); color: var(--tc-ink); border: 1px solid var(--tc-line);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 18px 50px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
@@ -76,7 +76,7 @@
 .tour-back { background: transparent; color: var(--tc-ink); border: 1px solid var(--tc-line); }
 .tour-back:hover { border-color: rgba(243, 239, 230, 0.35); }
 .tour-next { min-width: 72px; background: var(--tc-accent); color: #032119; border: 1px solid var(--tc-accent); }
-.tour-next:hover { background: #5be3bd; border-color: #5be3bd; }
+.tour-next:hover { background: #67e8f9; border-color: #67e8f9; }
 .tour-x:focus-visible, .tour-back:focus-visible, .tour-next:focus-visible { outline: 2px solid var(--tc-accent); outline-offset: 2px; }
 
 /* the arrow points from the card's edge to the target; tour.js sets the side and --tour-arrow */

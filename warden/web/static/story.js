@@ -9,7 +9,7 @@ const RAIL_INFO = {
   transfer: { name: "Airwallex", sub: "bank transfer" },
   card: { name: "Airwallex", sub: "issued virtual card" },
   vic_checkout: { name: "Visa VIC · Airi", sub: "checkout, passkey-confirmed" },
-  x402: { name: "Alta", sub: "x402 on-chain (formerly Metal)" },
+  x402: { name: "Alta", sub: "x402 on-chain" },
 };
 
 // Motion: the viewer's saved choice (shared with the console), else the OS setting.
@@ -108,7 +108,7 @@ document.querySelectorAll(".reveal, #num-grid").forEach((el) => io.observe(el));
       const alpha = Math.sin(d.t * Math.PI) * 0.85;
       ctx.beginPath();
       const light = document.documentElement.dataset.theme === "light";
-      ctx.fillStyle = `rgba(${d.warm ? (light ? "21,23,28" : "243,239,230") : (light ? "15,138,104" : "43,212,164")},${alpha})`;
+      ctx.fillStyle = `rgba(${d.warm ? (light ? "21,23,28" : "243,239,230") : (light ? "8,145,178" : "34,211,238")},${alpha})`;
       ctx.arc(x, y, d.r * (1 - t * 0.5), 0, Math.PI * 2);
       ctx.fill();
     }

@@ -101,7 +101,7 @@ function renderHeader() {
     .join("");
   const pill = $("mode-pill");
   pill.textContent = state.mode === "live" ? "Live sandbox" : "Offline demo";
-  pill.title = state.mode === "live" ? "Live: Airwallex sandbox, Visa VIC via Airi, Alta testnet (formerly Metal), Claude" : "Offline demo: every rail simulated";
+  pill.title = state.mode === "live" ? "Live: Airwallex sandbox, Visa VIC via Airi, Alta testnet, Claude" : "Offline demo: every rail simulated";
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
   // the sidebar's workspace card and counts
   const agents = state.agents.length;
@@ -652,7 +652,7 @@ const FLOW_RAILS = [
   { kind: "transfer", name: "Airwallex", sub: "bank transfer" },
   { kind: "card", name: "Airwallex", sub: "virtual card" },
   { kind: "vic_checkout", name: "Visa VIC · Airi", sub: "agent checkout" },
-  { kind: "x402", name: "Alta", sub: "x402 on-chain (formerly Metal)" },
+  { kind: "x402", name: "Alta", sub: "x402 on-chain" },
 ];
 const FLOW_TONE = { ALLOW: "ok", BLOCK: "bad", CONTAIN: "crit", STEP_UP: "hold" };
 // Honour the OS "reduce motion" setting unless the viewer switches motion on (remembered).

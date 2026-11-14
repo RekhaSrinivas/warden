@@ -5,7 +5,7 @@ Checks shown per receipt:
   2. receipt hash (the body has not been edited)
   3. chain link to the previous receipt (none removed or reordered)
   4. the audit-log entry it was issued from exists, and the audit chain is intact
-  5. Alta (formerly Metal) receipts only: the payment is re-verified on chain against the human-signed mandate
+  5. Alta receipts only: the payment is re-verified on chain against the human-signed mandate
 
 Mount with `app.include_router(create_verify_router())`. The page shows no secrets:
 receipts only carry hashed or masked identifiers.
@@ -276,6 +276,7 @@ def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path
 # --- rendering ------------------------------------------------------------------------
 
 _BADGE = {"ALLOW": "allow", "BLOCK": "block", "CONTAIN": "contain"}
+_RAIL_NAMES = {"metal": "Alta", "airi": "Airi (Visa VIC)", "airwallex": "Airwallex", "airwallex-card": "Airwallex card"}
 
 
 def _receipt_row(r: rc.Receipt) -> str:
@@ -319,7 +320,7 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
         ("Amount", f'{html.escape(str(b.get("amount")))} {html.escape(str(b.get("currency")))}'),
         ("Payee", f'{html.escape(str((b.get("payee") or {}).get("name")))} '
                   f'<span class="mono muted">{html.escape(str((b.get("payee") or {}).get("id")))}</span>'),
-        ("Rail", html.escape(f'{b.get("rail")} via {e.get("rail") or "—"}')),
+        ("Rail", html.escape(f'{b.get("rail")} via {_RAIL_NAMES.get(str(e.get("rail")), e.get("rail") or "—")}')),
         ("Agent", html.escape(str(b.get("agent_id")))),
         ("Settlement", html.escape(str(b.get("settlement_status")))),
         ("Reasons", html.escape("; ".join(d.get("reasons") or [])) or "—"),
@@ -368,9 +369,9 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
 def _page(title: str, body: str) -> str:
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(title)} · Warden</title>
-<script src="/static/theme.js?v=2"></script><script src="/static/theme-lab.js?v=3"></script><link rel="stylesheet" href="/static/theme-lab.css?v=3"><link rel="stylesheet" href="/static/theme-toggle.css?v=2">
+<script src="/static/theme.js?v=2"></script><link rel="stylesheet" href="/static/theme-toggle.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<style>{_CSS}</style></head><body>
+<style>{_CSS}</style><link rel="stylesheet" href="/static/skin.css?v=4"></head><body>
 <header class="bar"><div class="top"><a href="/verify" class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/></svg>Warden <span class="pill">Verify</span></a>
 <nav><a href="/lab">Lab</a><a href="/">Story</a><a href="/console">Console</a><button class="theme-toggle" type="button" aria-label="Switch theme">
 <span class="tt-opt tt-dark"><svg viewBox="0 0 24 24"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg></span>
