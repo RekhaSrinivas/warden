@@ -97,12 +97,21 @@ function gauge(score) {
 function renderHeader() {
   const word = { live: "live", simulated: "simulated", offline: "offline" };
   $("rails").innerHTML = state.rails
-    .map((r) => `<span class="chip ${esc(r.status.split(" ")[0])}"><span class="dot"></span>${esc(r.label)}<span class="state">${esc(word[r.status] || r.status)}</span></span>`)
+    .map((r) => `<span class="chip ${esc(r.status.split(" ")[0])}" title="${esc(r.label)}: ${esc(word[r.status] || r.status)}"><span class="dot"></span><span class="chip-label">${esc(r.label)}</span><span class="state">${esc(word[r.status] || r.status)}</span></span>`)
     .join("");
   const pill = $("mode-pill");
   pill.textContent = state.mode === "live" ? "Live sandbox" : "Offline demo";
   pill.title = state.mode === "live" ? "Live: Airwallex sandbox, Visa VIC via Airi, Alta testnet (formerly Metal), Claude" : "Offline demo: every rail simulated";
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
+  // the sidebar's workspace card and counts
+  const agents = state.agents.length;
+  $("ws-agents").textContent = `${agents} agent${agents === 1 ? "" : "s"}`;
+  $("ws-mode-text").textContent = pill.textContent;
+  $("ws-mode").className = `ws-mode ${state.mode === "live" ? "live" : ""}`;
+  $("ws-mode").title = pill.title;
+  $("sb-agents").textContent = agents || "";
+  $("sb-decisions").textContent = state.feed.filter((i) => i.pending || i.decision).length || "";
+  $("sb-inbox").textContent = state.inbox.length || "";
   $("btn-reset").hidden = state.mode === "live";
   $("btn-locks").hidden = state.mode === "live";
   const m = state.protection;
@@ -845,11 +854,166 @@ async function drainFlow(gap) {
   if (flow.draining) return;
   flow.draining = true;
   while (flow.queue.length) {
-    animateDecision(flow.queue.shift());
+    const item = flow.queue.shift();
+    rpFollow(item);
+    animateDecision(item);
     await sleep(reduceMotion ? 0 : gap);
   }
   flow.draining = false;
 }
+
+// --- decision replay --------------------------------------------------------------
+// The bar under the flow steps through state.feed oldest first, one decision per step, each drawn
+// with the same pulse as a live one (none when motion is off). New live decisions still play as they
+// arrive: they pause the replay and the bar follows them.
+
+const VERDICT_WORD = { ALLOW: "ALLOW", STEP_UP: "HELD", BLOCK: "BLOCK", CONTAIN: "CONTAIN" };
+const RP_GAP = 1600;  // ms between steps at 1x, the old replay's pace
+const rp = { list: [], pos: 0, id: null, playing: false, timer: 0, phases: [] };
+
+// One feed entry: a retried request reuses its proposal id, so the decision's audit seq tells them apart.
+function rpKey(item) {
+  return `${item.proposal.id}#${item.decision?.seq ?? "-"}`;
+}
+
+function rpSync() {  // after every refresh: same decision, new list
+  rp.list = state.feed.filter((i) => i.pending || i.decision).slice().reverse();
+  const at = rp.id ? rp.list.findIndex((i) => rpKey(i) === rp.id) : -1;
+  if (at >= 0) rp.pos = at + 1;
+  else if (!rp.playing) rp.pos = rp.list.length;
+  rpBar();
+  if (rp.playing) return;
+  rpCaption(rp.list[rp.pos - 1]);
+  if (rp.id === null) rpPhases(rp.list[rp.pos - 1]);
+}
+
+function rpBar() {
+  const n = rp.list.length;
+  const s = $("rp-scrub");
+  s.min = n ? 1 : 0;
+  s.max = n;
+  s.value = rp.pos;
+  s.disabled = !n;
+  s.style.setProperty("--fill", `${n > 1 ? ((rp.pos - 1) / (n - 1)) * 100 : n ? 100 : 0}%`);
+  $("rp-count").textContent = `${rp.pos} / ${n}`;
+  $("rp-restart").disabled = !n;
+  $("rp-play").disabled = !n;
+  $("rp-back").disabled = rp.pos <= 1;
+  $("rp-next").disabled = rp.pos >= n;
+  $("replay").classList.toggle("playing", rp.playing);
+  $("rp-play").setAttribute("aria-label", rp.playing ? "Pause" : "Play");
+  $("rp-play").title = rp.playing ? "Pause" : n && rp.pos >= n ? "Play from the first decision" : "Play";
+}
+
+function rpCaption(item) {
+  if (!item) {
+    $("rp-caption").innerHTML = `<span class="muted">No decisions yet. Press <b>Run a normal day</b>, then try to fool an agent.</span>`;
+    rpPhases(null);
+    return;
+  }
+  const p = item.proposal;
+  const d = item.decision;
+  const action = flowAction(item);
+  const rail = (RAILS[p.rail] || {}).label || p.rail;
+  const violations = d?.violations || [];
+  const codesHtml = violations.map((v) => `<span class="code violation">${esc(v)}</span>`)
+    .concat((d?.risk?.flags || []).filter((f) => !violations.includes(f)).map((f) => `<span class="code">${esc(f)}</span>`)).join("");
+  const risk = d?.risk;
+  const why = risk && risk.explanation && risk.source !== "skipped"
+    ? `<span class="rp-why"><b>${risk.source === "claude" ? "Claude" : "Risk reader"}</b> ${esc(risk.explanation)}</span>` : "";
+  const railNote = action === "ALLOW" ? (landed(item) ? "" : "refused it") : action === "STEP_UP" ? "waits for you" : "never reached";
+  const railHtml = landed(item) ? esc(rail) : `<s>${esc(rail)}</s>`;
+  $("rp-caption").innerHTML = `
+    <div class="rp-line">
+      <span class="rp-time">${esc(clock(d?.ts))}</span>
+      <span class="agent-tag">${esc(p.agent_id)}</span><span class="rp-arrow" aria-hidden="true">→</span>
+      <span class="rp-warden">Warden</span><span class="rp-verdict ${toneOf(item)}">${esc(VERDICT_WORD[action] || action || "PENDING")}</span><span class="rp-arrow" aria-hidden="true">→</span>
+      <span class="rp-rail">${railHtml}</span>${railNote ? `<span class="rp-note">${esc(railNote)}</span>` : ""}
+      <span class="rp-amt">${esc(money(p.amount, p.currency))}</span><span class="rp-payee">${esc(p.payee_name)}</span>
+    </div>
+    <div class="rp-line rp-sub">${codesHtml}${why || (codesHtml ? "" : `<span class="muted">Within mandate · ${esc(p.description)}</span>`)}</div>`;
+}
+
+// The five chips light up with the pulse: asked, limits checked, evidence read, verdict, rail.
+function rpPhases(item, animate = false) {
+  rp.phases.forEach(clearTimeout);
+  rp.phases = [];
+  const ol = $("rp-steps");
+  const lis = [...ol.children];
+  const set = (k) => lis.forEach((li, i) => { li.classList.toggle("on", i < k); li.classList.toggle("now", i === k - 1); });
+  ol.className = `rp-steps ${item ? toneOf(item) : ""}`;
+  const action = item && flowAction(item);
+  ol.querySelector(".rp-last").textContent = !item ? "Rail" : landed(item) ? "Paid" : action === "STEP_UP" ? "Held"
+    : action === "CONTAIN" ? "Fired" : action === "ALLOW" ? "Refused" : "Stopped";
+  if (!item) return set(0);
+  if (!animate) return set(5);
+  set(1);
+  for (const [ms, k] of [[350, 2], [700, 3], [950, 4], [landed(item) ? 1750 : 1150, 5]]) rp.phases.push(setTimeout(() => set(k), ms));
+}
+
+function rpShow(k, animate = true) {  // show step k (1-based); animate adds it to the ticker and pulses
+  const n = rp.list.length;
+  if (!n) return;
+  rp.pos = Math.max(1, Math.min(n, k));
+  const item = rp.list[rp.pos - 1];
+  rp.id = rpKey(item);
+  rpBar();
+  rpCaption(item);
+  rpPhases(item, animate && !reduceMotion);
+  if (animate) animateDecision(item);
+}
+
+function rpJump(k) {  // a jump: the ticker shows the decisions leading up to step k, then step k plays
+  const upto = Math.max(1, Math.min(rp.list.length, k)) - 1;
+  $("ticker").innerHTML = "";
+  rp.list.slice(Math.max(0, upto - 5), upto).forEach(addTicker);
+  rpShow(k);
+}
+
+function rpFollow(item) {  // a live decision: the bar moves to it
+  const at = rp.list.findIndex((i) => rpKey(i) === rpKey(item));
+  if (at < 0) return;
+  rp.pos = at + 1;
+  rp.id = rpKey(item);
+  rpBar();
+  rpCaption(item);
+  rpPhases(item, !reduceMotion);
+}
+
+function rpSchedule(delay) {
+  clearTimeout(rp.timer);
+  if (!rp.playing) return;
+  if (rp.pos >= rp.list.length && delay === undefined) { rpPause(); return; }
+  rp.timer = setTimeout(() => {
+    if (!rp.playing) return;
+    if (rp.pos >= rp.list.length) { rpPause(); return; }
+    rpShow(rp.pos + 1);
+    rpSchedule();
+  }, delay ?? RP_GAP / (Number($("rp-speed").value) || 1));
+}
+
+function rpPlay() {
+  if (!rp.list.length) return;
+  rp.playing = true;
+  if (rp.pos >= rp.list.length) rpJump(1);
+  else rpShow(rp.pos + 1);
+  rpSchedule();
+}
+
+function rpPause() {
+  rp.playing = false;
+  clearTimeout(rp.timer);
+  rpBar();
+}
+
+$("rp-play").addEventListener("click", () => (rp.playing ? rpPause() : rpPlay()));
+$("rp-restart").addEventListener("click", () => { rpPause(); rp.playing = true; rpJump(1); rpSchedule(); });
+$("rp-back").addEventListener("click", () => { rpPause(); rpJump(rp.pos - 1); });
+$("rp-next").addEventListener("click", () => { rpPause(); rpJump(rp.pos + 1); });
+// read the thumb before pausing: pausing redraws the bar, thumb included
+$("rp-scrub").addEventListener("input", (e) => { const k = Number(e.target.value); rpPause(); rpShow(k, false); });
+$("rp-scrub").addEventListener("change", (e) => { const k = Number(e.target.value); rpPause(); rpJump(k); });
+$("rp-speed").addEventListener("change", () => { if (rp.playing) rpSchedule(); });
 
 function countUp(el, to) {
   const from = Number(el.dataset.v || 0);
@@ -873,6 +1037,7 @@ function renderFlow() {
       · ${esc(money(m.paid.amount))} paid within mandate · ${state.receipts.count} signed receipts`;
   }
   const decided = state.feed.filter((i) => i.pending || i.decision);
+  rpSync();
   if (!flow.primed) {  // first paint: replay the recent story so the page opens in motion
     flow.primed = true;
     decided.forEach((i) => flow.seen.add(flowKey(i)));
@@ -881,15 +1046,28 @@ function renderFlow() {
   }
   const fresh = decided.filter((i) => !flow.seen.has(flowKey(i))).reverse();
   fresh.forEach((i) => flow.seen.add(flowKey(i)));
+  if (fresh.length) rpPause();  // live decisions take over from a replay
   flow.queue.push(...fresh);
   drainFlow(700);
 }
 
+// Replays the last ten decisions through the replay bar. With motion off it shows the latest at once.
 function replayFlow() {
-  const recent = state.feed.filter((i) => i.pending || i.decision).slice(0, 10).reverse();
+  rpPause();
+  const n = rp.list.length;
+  if (!n) return;
+  if (reduceMotion) { rpJump(n); return; }
   $("ticker").innerHTML = "";
-  flow.queue = recent;
-  setTimeout(() => drainFlow(1600), 400);
+  rp.pos = Math.max(0, n - 10);  // the next step is the first of the last ten
+  rp.id = rp.pos ? rpKey(rp.list[rp.pos - 1]) : null;
+  rp.playing = true;
+  rpBar();
+  clearTimeout(rp.timer);
+  rp.timer = setTimeout(() => {
+    if (!rp.playing) return;
+    rpShow(rp.pos + 1);
+    rpSchedule();
+  }, 400);
 }
 
 $("btn-replay").addEventListener("click", () => { if (!flow.draining) replayFlow(); });
@@ -915,9 +1093,100 @@ function render() {
   renderCases();
   renderLocks();
   renderAudit();
+  requestAnimationFrame(spySections);
 }
 
+// --- app shell: sidebar links, scroll-spy, phone drawer ----------------------------------
+// Each sidebar link scrolls to a part of this page. The highlight follows the section in view; a
+// link inside a section (Approvals, Card network…) stays lit after a click until you leave that section.
+
+const navLinks = [...document.querySelectorAll("#sidebar a[data-nav]")];
+const spyLinks = navLinks
+  .filter((a) => a.closest(".sb-nav"))
+  .map((a) => {
+    const el = document.querySelector(a.getAttribute("href"));
+    return el && { a, section: el.closest(".act") || el };
+  })
+  .filter(Boolean);
+const spySectionsList = [...new Set(spyLinks.map((l) => l.section))];
+const spy = { clicked: null, lockUntil: 0, raf: 0 };
+
+function markLink(a) {
+  for (const l of spyLinks) {
+    const on = l.a === a;
+    if (on && !l.a.classList.contains("active")) keepInNav(l.a);
+    l.a.classList.toggle("active", on);
+    if (on) l.a.setAttribute("aria-current", "location");
+    else l.a.removeAttribute("aria-current");
+  }
+}
+
+function keepInNav(a) {  // on a short screen the link list scrolls: keep the lit link in it
+  const nav = $("sb-nav");
+  if (nav.scrollHeight <= nav.clientHeight) return;
+  const r = a.getBoundingClientRect();
+  const n = nav.getBoundingClientRect();
+  if (r.bottom > n.bottom - 24) nav.scrollTop += r.bottom - n.bottom + 32;
+  else if (r.top < n.top) nav.scrollTop -= n.top - r.top + 8;
+}
+
+function navFade() {  // a soft fade at the bottom while there is more list below
+  const nav = $("sb-nav");
+  nav.classList.toggle("more", nav.scrollTop + nav.clientHeight < nav.scrollHeight - 2);
+}
+$("sb-nav").addEventListener("scroll", navFade, { passive: true });
+
+function spySections() {
+  if (performance.now() < spy.lockUntil) return;
+  const line = ($("sb-toggle").closest(".topbar")?.offsetHeight || 0) + 96;
+  let current = spySectionsList[0];
+  for (const s of spySectionsList) if (s.getBoundingClientRect().top <= line) current = s;
+  if (!current) return;
+  if (spy.clicked && spyLinks.find((l) => l.a === spy.clicked)?.section === current) { markLink(spy.clicked); return; }
+  spy.clicked = null;
+  markLink(spyLinks.find((l) => l.section === current)?.a);
+}
+
+function setDrawer(open) {
+  document.body.classList.toggle("sb-open", open);
+  $("sb-backdrop").hidden = !open;
+  $("sb-toggle").setAttribute("aria-expanded", String(open));
+  $("sb-toggle").setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+}
+
+for (const a of navLinks) {
+  a.addEventListener("click", (event) => {
+    const el = document.querySelector(a.getAttribute("href"));
+    if (!el) return;
+    event.preventDefault();
+    setDrawer(false);
+    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    try { history.replaceState(null, "", a.getAttribute("href")); } catch { /* fine without */ }
+    if (spyLinks.some((l) => l.a === a)) {
+      spy.clicked = a;
+      markLink(a);
+      // hold the highlight until the smooth scroll lands (scrollend), with a timer as the fallback
+      spy.lockUntil = performance.now() + (reduceMotion ? 120 : 2500);
+      const release = () => { spy.lockUntil = 0; spySections(); };
+      window.addEventListener("scrollend", release, { once: true });
+      setTimeout(release, reduceMotion ? 140 : 2520);
+    }
+  });
+}
+$("sb-toggle").addEventListener("click", () => setDrawer(!document.body.classList.contains("sb-open")));
+$("sb-backdrop").addEventListener("click", () => setDrawer(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("sb-open")) setDrawer(false); });
+window.matchMedia("(max-width: 760px)").addEventListener?.("change", () => setDrawer(false));
+window.addEventListener("scroll", () => {
+  cancelAnimationFrame(spy.raf);
+  spy.raf = requestAnimationFrame(spySections);
+}, { passive: true });
+window.addEventListener("resize", () => requestAnimationFrame(() => { spySections(); navFade(); }));
+window.addEventListener("load", () => { spySections(); navFade(); });
+
 render();
+spySections();
+navFade();
 loadScorecard();
 
 const events = new EventSource("/api/stream");

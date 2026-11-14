@@ -242,3 +242,29 @@ def test_console_offers_the_guided_tour(tmp_path):
     page = client.get("/console").text
     assert 'id="btn-tour"' in page and "/static/tour.js?v=" in page and "/static/tour.css?v=" in page
     assert client.get("/static/tour.js").status_code == 200 and client.get("/static/tour.css").status_code == 200
+
+
+def test_console_has_the_sidebar_nav_and_the_decision_replay(tmp_path):
+    import re
+
+    client, _ = make_client(tmp_path)
+    page = client.get("/console").text
+    assert 'class="sidebar"' in page and 'id="sb-nav"' in page and 'id="rails"' in page
+    for group in ("Overview", "Agents", "Guard", "Prove", "Evidence", "Rails"):
+        assert f'<span class="sb-label">{group}</span>' in page
+    assert 'id="workspace"' in page and "Acme Corp" in page and "Warden 1.0" in page
+    # every in-page link in the sidebar lands on an element that exists
+    ids = set(re.findall(r'id="([^"]+)"', page))
+    targets = re.findall(r'<a href="#([^"]+)" data-nav', page)
+    assert len(targets) == 11 and set(targets) <= ids
+    for link in ('href="/verify"', 'href="/lab"', 'href="/"'):
+        assert link in page
+    # the replay bar: restart, back, play/pause, next, scrubber, n / N counter, speed
+    for rid in ("replay", "rp-restart", "rp-back", "rp-play", "rp-next", "rp-scrub", "rp-count", "rp-speed", "rp-caption"):
+        assert f'id="{rid}"' in page
+    assert 'value="0.5"' in page and 'value="2"' in page
+    # the controls a recording script drives keep their ids
+    for kept in ("hire-id", "hire-role", "hire-text", "btn-draft", "hire-draft", "attack-agent", "btn-normal",
+                 "btn-card-outside", "btn-attack", "btn-tour", "authorizations", "agents", "prove", "btn-reconcile",
+                 "btn-locks", "btn-connect", "btn-replay", "btn-motion"):
+        assert kept in ids

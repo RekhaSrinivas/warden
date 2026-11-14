@@ -87,7 +87,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 
-python -m pytest -q                              # 123 tests
+python -m pytest -q                              # 124 tests
 python -m warden.web                             # http://127.0.0.1:8000
 ```
 
@@ -265,5 +265,5 @@ warden/
   web/                               story page, console, public verify page
 docs/live-runs/                      published live runs
 docs/redteam/                        every attack and its verdict
-tests/                               123 tests
+tests/                               124 tests
 ```

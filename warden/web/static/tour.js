@@ -33,6 +33,8 @@
       text: "Reconciliation matches each card charge to an Intent Receipt. A charge without one becomes a case and an Airwallex dispute, counted as recovered only when the dispute is won." },
     { section: "Independent locks", sel: "#locks", title: "Four locks that hold without Warden",
       text: "Switch Warden off and the rails still refuse on their own: the frozen card, Airwallex merchant categories, the Alta on-chain mandate and Airi's passkey." },
+    { section: "Navigate", sel: "#sb-nav", title: "Everything, one click away",
+      text: "The sidebar jumps to any part of the console and lights up where you are. Verify, the Lab and the Story open the public proof: receipts anyone can check, measured defences, and the live run." },
   ];
 
   const PAD = 8;      // ring padding around the target
@@ -100,7 +102,10 @@
     if (el && step.up) el = el.closest(step.up);
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    return r.width && r.height ? el : null;  // display:none or empty: skip
+    if (!r.width || !r.height) return null;  // display:none or empty: skip
+    // off-canvas (the sidebar drawer on a phone): skip
+    if (r.right <= 0 || r.left >= document.documentElement.clientWidth || getComputedStyle(el).visibility === "hidden") return null;
+    return el;
   }
 
   function find(k, dir) {  // nearest step from k in direction dir whose target is on the page
@@ -141,8 +146,8 @@
     document.body.append(ring, card);
   }
 
-  function stickyTop() {  // the sticky story nav covers the top of the viewport once scrolled
-    const nav = document.querySelector(".story");
+  function stickyTop() {  // the sticky top bar covers the top of the viewport
+    const nav = document.querySelector(".topbar");
     return nav && getComputedStyle(nav).position === "sticky" ? nav.offsetHeight : 0;
   }
 
@@ -155,6 +160,7 @@
   // The scroll position that shows the target (and room for the card), or the current one if it
   // already shows. Targets taller than the screen are aligned to the top, under the sticky nav.
   function scrollGoal(el, size) {
+    if (el.closest(".sidebar")) return window.scrollY;  // fixed: page scrolling does not move it
     const r = el.getBoundingClientRect();
     const vw = document.documentElement.clientWidth;
     const vh = window.innerHeight;
@@ -238,7 +244,15 @@
     ring.classList.toggle("glide", !still && !first);  // the first step appears in place, later ones glide
     card.classList.add("is-moving");
     lastLayout = "";
-    const goal = scrollGoal(targetOf(step), cardSize());
+    const target = targetOf(step);
+    const nav = target.closest(".sb-nav");  // the sidebar's list scrolls on its own: bring the target into it
+    if (nav) {
+      const r = target.getBoundingClientRect();
+      const n = nav.getBoundingClientRect();
+      if (r.bottom > n.bottom) nav.scrollTop += r.bottom - n.bottom + 8;
+      else if (r.top < n.top) nav.scrollTop -= n.top - r.top + 8;
+    }
+    const goal = scrollGoal(target, cardSize());
     moving = { goal, t0: performance.now(), lastY: window.scrollY, still: 0 };
     if (Math.abs(goal - window.scrollY) >= 1) window.scrollTo({ top: goal, behavior: still ? "auto" : "smooth" });
   }
