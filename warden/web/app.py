@@ -782,7 +782,7 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
             raise HTTPException(400, "Live locks are tested by the demo run (python -m warden.demo --live)")
         if not board().warden.trust.is_contained(w.PROCUREMENT):
             # Two of the locks are what firing put in place (frozen card, revoked mandate): nothing to test yet.
-            raise HTTPException(409, "Fire procurement-bot first (or send it two scam emails): the locks test "
+            raise HTTPException(409, "Fire procurement-bot first (its Fire agent button, or keep sending it scam emails until it is contained): the locks test "
                                      "what firing it put in place, with Warden switched off.")
         return _jsonable(board().services.test_locks(board().warden))
 

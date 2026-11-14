@@ -332,3 +332,8 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
 .snapshot-note { display: inline-block; margin: 18px auto 0; padding: 7px 14px; border-radius: 999px; font-size: 13px;
   color: var(--ink-2); border: 1px dashed var(--line-2); opacity: 0; animation: lineIn 1s 0.9s ease forwards; max-width: 680px; }
 .snapshot-note[hidden] { display: none; }
+
+.btn.btn-gh { display: inline-flex; align-items: center; gap: 10px; }
+.btn.btn-gh svg { width: 18px; height: 18px; flex: none; }
+.nav-gh { display: inline-flex; align-items: center; gap: 7px; }
+.nav-gh svg { width: 16px; height: 16px; }
