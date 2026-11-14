@@ -105,7 +105,20 @@ def test_requests_must_carry_a_fresh_airwallex_signature():
 def test_the_dashboard_serves_the_endpoint_and_shows_each_answer():
     app = create_app()
     client = TestClient(app)
-    response = client.post("/airwallex/remote-auth", json=payload("180", event="evt_web", card="unknown"))
+    response = client.post("/airwallex/remote-auth", json=payload("180", event="evt_web", card="simulated_card_procurement"))
     assert response.status_code == 200 and response.json()["response_status"] == "DECLINED"
     shown = client.get("/api/state").json()["authorizations"][0]
     assert shown["response_status"] == "DECLINED" and Decimal(shown["amount"]) == Decimal("180")
+
+
+def test_a_charge_warden_authorized_may_settle_but_a_stranger_clearing_may_not():
+    warden, authorizer, _ = world()
+    warden.intents.expect(w.supplies_card("85"))
+    auth = payload("85", event="evt_a") | {"card_transaction_lifecycle_id": "life_1"}
+    assert authorizer.decide(auth)["response_status"] == "AUTHORIZED"
+    clearing = payload("85", event="evt_c", kind="CLEARING") | {"card_transaction_lifecycle_id": "life_1"}
+    assert authorizer.decide(clearing)["response_status"] == "AUTHORIZED"
+    larger = payload("85.01", event="evt_c2", kind="CLEARING") | {"card_transaction_lifecycle_id": "life_1"}
+    assert authorizer.decide(larger)["response_status"] == "DECLINED"
+    stranger = payload("85", event="evt_s", kind="CLEARING") | {"card_transaction_lifecycle_id": "life_2"}
+    assert authorizer.decide(stranger)["response_status"] == "DECLINED"

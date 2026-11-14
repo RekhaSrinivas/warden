@@ -18,3 +18,5 @@ data/
 secrets/
 node_modules/
 VIDEO_SCRIPT.md
+
+tools/cloudflared/

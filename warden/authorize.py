@@ -14,7 +14,9 @@ with the shared secret) and a timestamp window. Every answer is written to the a
 
     python -m warden.authorize status                     show the sandbox's remote-auth settings
     python -m warden.authorize enable --url https://...   point Airwallex at Warden (needs Airwallex to
-                                                          enable remote auth on the account first)
+                                                          enable remote auth on the account first). Keeps the
+                                                          shared secret if .env has one; --new-secret replaces it
+    python -m warden.authorize disable                    stop asking Warden (cards follow their own controls)
     python -m warden.authorize selftest [--url ...]       send signed test requests to a running Warden
 """
 
@@ -54,6 +56,7 @@ class Intent:
     payee_name: str
     expires: float
     used_by: str = ""  # the card transaction event it authorized
+    charge: str = ""  # that charge's lifecycle (or transaction) id, so its clearing can be recognised
 
 
 @dataclass
@@ -75,7 +78,8 @@ class IntentBook:
         with self._lock:
             self._intents = [i for i in self._intents if i.proposal_id != proposal_id or i.used_by]
 
-    def claim(self, agent_id: str, amount: Decimal, currency: str, mcc: str, event_id: str) -> Intent | None:
+    def claim(self, agent_id: str, amount: Decimal, currency: str, mcc: str, event_id: str,
+              charge: str = "") -> Intent | None:
         """The unused, unexpired intent this charge matches, marked used. None if there is none."""
         with self._lock:
             now = self.clock()
@@ -83,9 +87,17 @@ class IntentBook:
                 if (not intent.used_by and intent.expires > now and intent.agent_id == agent_id
                         and intent.amount == amount and intent.currency == currency
                         and (not mcc or not intent.merchant_category or intent.merchant_category == mcc)):
-                    intent.used_by = event_id
+                    intent.used_by, intent.charge = event_id, charge
                     return intent
             return None
+
+    def authorized_charge(self, agent_id: str, charge: str, amount: Decimal) -> Intent | None:
+        """The intent that already authorized this charge, when it now settles for no more than approved."""
+        if not charge:
+            return None
+        with self._lock:
+            return next((i for i in self._intents if i.used_by and i.charge == charge
+                         and i.agent_id == agent_id and amount <= i.amount), None)
 
 
 # --- signatures -------------------------------------------------------------------------------
@@ -167,8 +179,10 @@ class RemoteAuthorizer:
         elif amount is None:
             status, reason = "DECLINED", "No readable amount."
         else:
-            intent = warden.intents.claim(agent_id, amount, currency, mcc, event_id)
-            if intent is None:
+            charge = str(payload.get("card_transaction_lifecycle_id") or payload.get("card_transaction_id") or "")
+            if kind == "CLEARING" and (intent := warden.intents.authorized_charge(agent_id, charge, amount)):
+                status, reason = "AUTHORIZED", f"Settles the charge Warden authorized for {intent.proposal_id}."
+            elif (intent := warden.intents.claim(agent_id, amount, currency, mcc, event_id, charge)) is None:
                 status, reason = "DECLINED", ("No Intent Receipt: Warden never approved this charge "
                                               f"({amount} {currency}, merchant category {mcc or '?'}).")
             else:
@@ -227,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", help="show the sandbox's remote authorization settings")
     enable = sub.add_parser("enable", help="point Airwallex's remote authorization at Warden")
     enable.add_argument("--url", required=True, help="public HTTPS URL ending in /airwallex/remote-auth")
+    enable.add_argument("--new-secret", action="store_true", help="issue a new shared secret (restart Warden after)")
+    sub.add_parser("disable", help="switch remote authorization off")
     test = sub.add_parser("selftest", help="send a signed out-of-band charge to a running Warden")
     test.add_argument("--url", default="http://127.0.0.1:8000/airwallex/remote-auth")
     test.add_argument("--card", default="selftest-card")
@@ -240,14 +256,24 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "enable":
         if not args.url.startswith("https://"):
             raise SystemExit("Airwallex needs an HTTPS URL")
+        from warden.config import load_settings
+
+        load_settings()
+        fresh = args.new_secret or not os.environ.get("AIRWALLEX_REMOTE_AUTH_SECRET")
         data = _client().post("/api/v1/issuing/config/update", {"remote_auth": {
-            "enabled": True, "url": args.url, "default_action": "DECLINED", "new_shared_secret": True}})
+            "enabled": True, "url": args.url, "default_action": "DECLINED", "new_shared_secret": fresh}})
+        if not fresh:
+            print("Remote authorization now calls", args.url, "(shared secret unchanged)")
+            return 0
         secret = json.dumps(data).split('"shared_secret": "', 1)[-1].split('"', 1)[0] if "shared_secret" in json.dumps(data) else ""
         if secret:
             _save_secret(secret)
             print("Remote authorization enabled; shared secret saved to .env (AIRWALLEX_REMOTE_AUTH_SECRET).")
         else:
             print("Airwallex answered without a shared secret:", json.dumps(data)[:500])
+    elif args.command == "disable":
+        _client().post("/api/v1/issuing/config/update", {"remote_auth": {"enabled": False}})
+        print("Remote authorization switched off; cards follow their own controls.")
     else:
         from warden.config import load_settings
 

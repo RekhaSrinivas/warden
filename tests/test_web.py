@@ -152,8 +152,11 @@ def test_money_protected_counts_each_payment_once_by_its_final_outcome():
     warden.submit(first)  # a fresh invoice object: paid
     warden.submit(first)  # the same request again: a double payment prevented
     warden.submit(w.fake_bank_change("1200"))  # stopped
-    client.post("/airwallex/remote-auth", json={"version": 2, "card_id": "copied", "card_transaction_event_id": "e1",
+    client.post("/airwallex/remote-auth", json={"version": 2, "card_id": "simulated_card_procurement", "card_transaction_event_id": "e1",
                                                 "transaction_amount": 180, "transaction_currency": "USD"})
+    for stranger in ({"card_id": "not-ours"}, {"card_id": "simulated_card_procurement", "card_transaction_event_id": "selftest_1"}):
+        client.post("/airwallex/remote-auth", json={"version": 2, "card_transaction_event_id": "e2", "transaction_amount": 999,
+                                                    "transaction_currency": "USD"} | stranger)  # not Warden's money
     m = client.get("/api/state").json()["protection"]
     assert m["paid"] == {"amount": "1185", "count": 4}
     assert m["double_payments"] == {"amount": "420", "count": 1}
@@ -205,3 +208,19 @@ def test_locks_are_tested_only_after_the_agent_is_fired_and_then_all_hold(tmp_pa
     client.post("/api/fire", json={"agent_id": w.PROCUREMENT})
     results = client.post("/api/locks").json()["results"]
     assert len(results) == 4 and all(r["held"] for r in results)
+
+
+def test_a_public_link_is_look_only_except_airwallex_remote_auth(tmp_path):
+    client, _ = make_client(tmp_path)
+    public = {"host": "warden-demo.trycloudflare.com"}
+    assert client.get("/", headers=public).status_code == 200
+    assert client.get("/api/state", headers=public).status_code == 200
+    for path, body in (("/api/normal-day", {"agent_id": "procurement-bot"}), ("/api/reset", None),
+                       ("/api/fire", {"agent_id": "procurement-bot"}), ("/mcp", {})):
+        assert client.post(path, json=body, headers=public).status_code == 403, path
+    answer = client.post("/airwallex/remote-auth", headers=public, json={
+        "version": 2, "card_id": "unknown", "card_transaction_event_id": "evt_1", "transaction_amount": 5,
+        "transaction_currency": "USD", "merchant": {"category_code": "5943"}})
+    assert answer.status_code == 200 and answer.json()["response_status"] == "DECLINED"
+    assert client.post("/api/normal-day", json={"agent_id": "procurement-bot"},
+                       headers={"host": "127.0.0.1:8000"}).status_code == 200

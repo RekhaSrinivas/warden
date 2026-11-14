@@ -52,6 +52,21 @@ python -m warden.receipts verify docs/live-runs/2026-11-13/receipts.jsonl docs/l
 
 Change any field of any receipt and it reports `BROKEN`.
 
+### Real-time card authorization, live (14 Nov 2026)
+
+With Airwallex Issuing remote authorization switched on, Airwallex asks Warden about every charge on an agent's card
+before approving it, and Warden answers from memory in about 0.1 ms. The rule is **no Intent Receipt, no
+authorization**: a charge is approved only if Warden approved that exact payment (same card, amount, currency and
+merchant category) moments before, and each approval covers one charge.
+
+| | Charge on research-bot's real Airwallex card | Airwallex card transaction event |
+|---|---|---|
+| 🛑 Declined | $12, never approved by Warden: copied card details used out of band | `01a1db32-2271-7000-a5e5-46e377ee34dc` · `REMOTE_AUTH_DECLINED` |
+| ✅ Approved | $12, approved by Warden first, then settled | `01a1db33-288c-7000-84b2-cfdbfceeb978` · APPROVED, cleared |
+
+Requests are verified with Airwallex's HMAC signature. If Warden can't be reached, Airwallex's default action is
+DECLINED (fail closed). In the sandbox, Airwallex asks only at authorization, not at clearing.
+
 ---
 
 ## Try it in 5 minutes, no keys
@@ -192,9 +207,12 @@ The Visa checkout pauses until a human confirms the Airi passkey; the console sh
 
 ## Honest limits
 
-- **Real-time card authorization** is built and tested ([`authorize.py`](warden/authorize.py), endpoint
-  `POST /airwallex/remote-auth`), but remote authorization isn't enabled on this sandbox account yet, so live card
-  charges are held to the mandate by the card's own controls instead.
+- **Real-time card authorization** needs Warden reachable over public HTTPS (a Cloudflare tunnel here), so it is
+  switched on only while Warden runs: `python -m warden.authorize enable --url https://<host>/airwallex/remote-auth`
+  and `disable`. When it is off, card charges are held to the mandate by the card's own controls. The approved
+  charge above was answered by Warden's authorizer with that single approval loaded, not by a full agent run.
+- **A public link is look-only.** Requests that reach Warden through a tunnel can read every page, but every button
+  answers 403; the only write a stranger can make is Airwallex's signed authorization call.
 - **The Visa checkout** uses a real VIC credential from Airi (a DPAN for the Visa test card), presented to a
   stand-in merchant checkout, because no live merchant accepts it in a sandbox.
 - **The $180 out-of-band charge** was created with Airwallex's sandbox card simulator. Its dispute is still

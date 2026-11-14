@@ -38,6 +38,22 @@ from warden.models import Evidence, Proposal
 from warden.rails.fake import FakeRail
 from warden.web.verify import create_verify_router
 
+PUBLIC_WRITES = {"/airwallex/remote-auth"}
+
+
+def is_card_decision(entry: dict[str, Any]) -> bool:
+    """A real-time answer about one of Warden's own agents' cards (not a self-test, not a stranger's card)."""
+    data = entry["data"]
+    return (entry["event"] == "remote_authorization" and bool(data.get("agent_id"))
+            and not str(data.get("event_id") or "").startswith("selftest_"))
+
+
+def is_local_host(host: str) -> bool:
+    """True for a request addressed to this machine (the Host header, port ignored)."""
+    name = host.strip().lower()
+    name = name[1:name.index("]")] if name.startswith("[") and "]" in name else name.rsplit(":", 1)[0] if name.count(":") == 1 else name
+    return name in ("127.0.0.1", "localhost", "::1", "testserver", "")
+
 HERE = Path(__file__).resolve().parent
 WEEK = 7 * 24 * 3600
 ASSET_VERSION = str(int(time.time()))  # cache-buster for /static links, new on every start
@@ -395,7 +411,7 @@ class Dashboard:
             else:
                 add("stopped", p["amount"])
         for e in entries:
-            if e["event"] == "remote_authorization" and e["data"].get("response_status") == "DECLINED":
+            if is_card_decision(e) and e["data"].get("response_status") == "DECLINED":
                 add("declined_live", e["data"].get("amount"))
         for c in cases:
             state = str(c.get("state"))
@@ -426,7 +442,7 @@ class Dashboard:
             "authorizations": [{k: e["data"].get(k) for k in ("agent_id", "amount", "currency", "merchant_name",
                                                                "merchant_category", "response_status", "reason",
                                                                "decided_in_ms", "proposal_id")} | {"ts": e["ts"]}
-                               for e in entries if e["event"] == "remote_authorization"][-20:][::-1],
+                               for e in entries if is_card_decision(e)][-20:][::-1],
             "flags": [{"agent_id": e["data"].get("agent_id"), "summary": e["data"].get("summary"),
                        "source": e["data"].get("source"), "ts": e["ts"]}
                       for e in entries if e["event"] == "agent_flag"][-20:][::-1],
@@ -543,6 +559,17 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
             yield
 
     app = FastAPI(title="Warden", docs_url=None, redoc_url=None, lifespan=lifespan)
+
+    @app.middleware("http")
+    async def public_is_read_only(request: Request, call_next):
+        """Through a public tunnel the console is look-only: nobody else can move money, hire or fire.
+        The one write a stranger may make is Airwallex's signed remote-authorization call."""
+        if (not is_local_host(request.headers.get("host", "")) and request.method not in ("GET", "HEAD")
+                and request.url.path not in PUBLIC_WRITES):
+            return JSONResponse(status_code=403, content={
+                "detail": "This public link is read-only. Run Warden locally to try the buttons (see the README)."})
+        return await call_next(request)
+
     app.router.routes.extend(mcp_app.routes)
     app.state.tokens = tokens
     app.state.gateway = gateway
