@@ -184,6 +184,26 @@ def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path
              'its public key:</p><pre>python -m warden.receipts verify docs/live-runs/2026-11-13/receipts.jsonl '
              'docs/live-runs/2026-11-13/receipt-public-key.pem</pre>')
         return _page("Verify an Intent Receipt", f"""
+          <section class="hero">
+            <p class="eyebrow">Public verification</p>
+            <h1>Don't trust Warden. <em>Check it.</em></h1>
+            <p class="lede">Every payment decision Warden makes becomes an Intent Receipt: what the agent asked for, what the
+              human allowed, what Warden decided and what the rail did. Anyone can check one, with no account and no
+              trust in Warden.</p>
+            <div class="steps">
+              <div class="step"><span>1</span><b>Signature</b><p>Signed with Warden's Ed25519 key, published below.
+                Change one character and it fails.</p></div>
+              <div class="step"><span>2</span><b>Chain</b><p>Each receipt carries the hash of the one before. Delete or
+                rewrite one and every later link breaks.</p></div>
+              <div class="step"><span>3</span><b>On chain</b><p>For Alta payments, the payment itself is re-checked on
+                the testnet against the mandate a human signed.</p></div>
+            </div>
+          </section>
+          <div class="cols">
+          <div class="col-main">
+          <section class="panel"><h2>Recent receipts <span class="count">{len(receipts)}</span></h2><div class="rows">{rows}</div></section>
+          </div>
+          <div class="col-side">
           <section class="panel">
             <h2>Look up a receipt</h2>
             <form class="lookup" onsubmit="location.href='/verify/'+encodeURIComponent(this.r.value.trim());return false">
@@ -194,11 +214,12 @@ def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path
               <button class="btn" onclick="checkPaste()">Check signature</button><div id="paste-out"></div>
             </details>
           </section>
-          <section class="panel"><h2>Recent receipts</h2><div class="rows">{rows}</div></section>
           <section class="panel"><h2>Warden's public key</h2>
             <p class="muted">Every receipt is signed with the matching private key. Check signatures yourself with any
             Ed25519 library over the receipt's canonical JSON (sorted keys, no spaces), excluding
-            <code>receipt_hash</code> and <code>signature</code>.</p><pre>{html.escape(pem)}</pre></section>
+            <code>receipt_hash</code> and <code>signature</code>.</p><pre>{html.escape(pem)}</pre>
+            <p class="muted small">Or offline: <code>python -m warden.receipts verify receipts.jsonl receipt-public-key.pem</code></p></section>
+          </div></div>
           <script>
           async function checkPaste() {{
             const out = document.getElementById('paste-out');
@@ -261,10 +282,10 @@ def _receipt_row(r: rc.Receipt) -> str:
     b = r.body
     action = (b.get("decision") or {}).get("action", "")
     return (f'<a class="row" href="/verify/{html.escape(r.id)}"><span class="badge {_BADGE.get(action, "")}">'
-            f'{html.escape(action)}</span><span class="mono">{html.escape(r.id)}</span>'
-            f'<span>{html.escape(str(b.get("amount") or ""))} {html.escape(str(b.get("currency") or ""))}</span>'
-            f'<span class="muted">{html.escape(str((b.get("payee") or {}).get("name") or ""))}</span>'
-            f'<span class="muted">{html.escape(str(b.get("settlement_status") or ""))}</span></a>')
+            f'{html.escape(action)}</span><span class="who"><b>{html.escape(str((b.get("payee") or {}).get("name") or ""))}</b>'
+            f'<span class="mono muted">{html.escape(r.id)} · {html.escape(str(b.get("agent_id") or ""))}</span></span>'
+            f'<span class="amt"><b>{html.escape(str(b.get("amount") or ""))} {html.escape(str(b.get("currency") or ""))}</b>'
+            f'<span class="muted">{html.escape(str(b.get("settlement_status") or ""))}</span></span></a>')
 
 
 def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
@@ -320,17 +341,28 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
                          if k == "Alta transaction" and e.get("explorer") else html.escape(str(v)))
                       + "</span></div>" for k, v in ids)
     field_html = "".join(f'<div class="kv"><span>{k}</span><span>{v}</span></div>' for k, v in fields)
+    amount = f'{html.escape(str(b.get("amount")))} {html.escape(str(b.get("currency")))}'
+    payee = html.escape(str((b.get("payee") or {}).get("name")))
     return f"""
+      <p class="crumb"><a href="/verify">← All receipts</a></p>
+      <div class="cols detail">
+      <div class="col-side sticky">
       <section class="panel verdict {'ok' if all_ok else 'bad'}">
+        <div class="seal" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/>
+          <path class="mark" d="{'m8.5 12 2.5 2.5 4.5-5' if all_ok else 'm9 9 6 6m0-6-6 6'}"/></svg></div>
         <h2>{'✓ Authentic receipt' if all_ok else '✗ This receipt does not verify'}</h2>
+        <p class="sum">{html.escape(str(d.get("action")))} · {amount} · {payee}</p>
         <p class="muted mono">{html.escape(receipt.id)} · issued {html.escape(str(b.get("issued_at")))}
           · signer {html.escape(str(b.get("signer")))}</p>
         <div class="checks">{check_html}{onchain}</div>
       </section>
+      </div>
+      <div class="col-main">
       <section class="panel"><h2>What was authorised, and what happened</h2>{field_html}</section>
       <section class="panel"><h2>Bound identifiers</h2>{id_html}
         <p><a href="/verify/{html.escape(receipt.id)}/json">Download receipt JSON</a> · <a href="/verify">All receipts</a></p>
-      </section>"""
+      </section>
+      </div></div>"""
 
 
 def _page(title: str, body: str) -> str:
@@ -338,56 +370,101 @@ def _page(title: str, body: str) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(title)} · Warden</title>
 <script src="/static/theme.js?v=2"></script><link rel="stylesheet" href="/static/theme-toggle.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<style>{_CSS}</style></head><body><main>
-<header><div class="top"><a href="/verify" class="brand">Warden <span>Receipt verification</span></a>
-<nav><a href="/">Story</a><a href="/console">Console</a><button class="theme-toggle" type="button" aria-label="Switch theme">
+<style>{_CSS}</style></head><body>
+<header class="bar"><div class="top"><a href="/verify" class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/></svg>Warden <span class="pill">Verify</span></a>
+<nav><a href="/lab">Lab</a><a href="/">Story</a><a href="/console">Console</a><button class="theme-toggle" type="button" aria-label="Switch theme">
 <span class="tt-opt tt-dark"><svg viewBox="0 0 24 24"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg></span>
 <span class="tt-opt tt-light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg></span>
-</button></nav></div>
-<p class="muted">Check any Intent Receipt without trusting Warden: the signature, the chain and, for Alta payments, the chain itself.</p></header>
-{body}</main></body></html>"""
+</button></nav></div></header>
+<main>{body}</main></body></html>"""
 
 
 _CSS = """
-:root { --bg:#050607; --surface:#0d1013; --surface-2:#15191e; --border:rgba(243,239,230,.1); --text:#f3efe6; --muted:#8f8b82;
-  --green:#2bd4a4; --green-bg:rgba(43,212,164,.12); --amber:#ffb547; --red:#ff5a47; --red-bg:rgba(255,90,71,.12);
-  --crimson:#ff3d71; --crimson-bg:rgba(255,61,113,.14); --blue:#8ab4ff; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
-  color-scheme:dark }
-:root[data-theme="light"] { --bg:#f7f5f0; --surface:#ffffff; --surface-2:#f3f0e8; --border:#e7e2d8; --text:#15171c; --muted:#6c7079;
-  --green:#13815e; --green-bg:#e5f3ec; --amber:#b3741a; --red:#c2392c; --red-bg:#fbebe7; --crimson:#a3123a; --crimson-bg:#fce7ed;
-  --blue:#2a56c4; color-scheme:light }
-header .top { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap }
-header nav { display:flex; align-items:center; gap:16px; font-size:14px } header nav a { color:var(--muted); text-decoration:none }
-header nav a:hover { color:var(--text) }
-.brand { font-family:"Instrument Serif",Georgia,serif; font-weight:400 !important; font-size:30px !important }
-.brand span { font-family:Inter,system-ui,sans-serif }
-.theme-toggle { --tt-line:var(--border); --tt-bg:var(--surface); --tt-ink:var(--muted); --tt-knob:var(--surface-2); --tt-active:var(--green) }
+:root { --bg:#050607; --surface:#0d1013; --surface-2:#15191e; --border:rgba(243,239,230,.1); --border-2:rgba(243,239,230,.18);
+  --text:#f3efe6; --text-2:#c9c4b8; --muted:#8f8b82; --green:#2bd4a4; --green-deep:#0f6e56; --green-bg:rgba(43,212,164,.12);
+  --amber:#ffb547; --red:#ff5a47; --red-bg:rgba(255,90,71,.12); --crimson:#ff3d71; --crimson-bg:rgba(255,61,113,.14);
+  --blue:#8ab4ff; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace; --serif:"Instrument Serif",Georgia,serif; color-scheme:dark }
+:root[data-theme="light"] { --bg:#f7f5f0; --surface:#ffffff; --surface-2:#f3f0e8; --border:#e7e2d8; --border-2:#d9d3c6;
+  --text:#15171c; --text-2:#3a3f48; --muted:#6c7079; --green:#13815e; --green-bg:#e5f3ec; --amber:#b3741a; --red:#c2392c;
+  --red-bg:#fbebe7; --crimson:#a3123a; --crimson-bg:#fce7ed; --blue:#2a56c4; color-scheme:light }
 * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--text);
-  font:15px/1.5 Inter,system-ui,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased }
-main { max-width:920px; margin:0 auto; padding:32px 20px 64px }
-header { margin-bottom:20px } .brand { color:var(--text); text-decoration:none; font-size:22px; font-weight:600 }
-.brand span { color:var(--muted); font-weight:400; margin-left:8px; font-size:16px }
-h2 { font-size:16px; font-weight:600; margin:0 0 12px } a { color:var(--blue) }
-.panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px }
-.verdict.ok { border-color:var(--green) } .verdict.ok h2 { color:var(--green) }
-.verdict.bad { border-color:var(--red) } .verdict.bad h2 { color:var(--red) }
-.muted { color:var(--muted) } .mono { font-family:var(--mono); font-size:13px; word-break:break-all }
-.check { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:8px 10px; border-radius:8px;
-  background:var(--surface-2); margin-bottom:6px } .check b { min-width:110px }
-.check.ok span:first-child { color:var(--green) } .check.bad span:first-child { color:var(--red) }
-.check ul { flex-basis:100%; margin:6px 0 0; color:var(--muted); font-size:13px }
-.kv { display:grid; grid-template-columns:160px 1fr; gap:12px; padding:7px 0; border-bottom:1px solid var(--border) }
-.kv span:first-child { color:var(--muted) }
-.badge { font-size:12px; font-weight:600; padding:2px 8px; border-radius:6px; background:var(--surface-2) }
+  font:15.5px/1.55 Inter,system-ui,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased }
+a { color:var(--blue) } code { font-family:var(--mono); font-size:12.5px }
+.bar { position:sticky; top:0; z-index:5; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border) }
+.bar .top { max-width:1240px; margin:0 auto; padding:14px clamp(16px,4vw,40px); display:flex; justify-content:space-between;
+  align-items:center; gap:16px; flex-wrap:wrap }
+.brand { display:flex; align-items:center; gap:10px; color:var(--text); text-decoration:none; font-family:var(--serif); font-size:26px }
+.brand svg { width:24px; height:24px; fill:none; stroke-linecap:round; stroke-linejoin:round }
+.brand svg path:first-child { fill:var(--green-deep); stroke:var(--green); stroke-width:1.6 } .brand .tick { stroke:#fff; stroke-width:2.4 }
+.pill { font:600 11px/1 Inter,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:var(--green);
+  border:1px solid var(--border-2); border-radius:999px; padding:5px 9px }
+.bar nav { display:flex; align-items:center; gap:18px; font-size:14px } .bar nav a { color:var(--text-2); text-decoration:none }
+.bar nav a:hover { color:var(--text) }
+.theme-toggle { --tt-line:var(--border); --tt-bg:var(--surface); --tt-ink:var(--muted); --tt-knob:var(--surface-2); --tt-active:var(--green) }
+main { max-width:1240px; margin:0 auto; padding:0 clamp(16px,4vw,40px) 72px }
+.hero { padding:clamp(36px,6vw,72px) 0 28px }
+.eyebrow { margin:0 0 10px; font-size:12.5px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--green) }
+h1 { margin:0; font-family:var(--serif); font-weight:400; font-size:clamp(38px,5.4vw,72px); line-height:1.03; letter-spacing:-.02em }
+h1 em { font-style:italic; color:var(--green) }
+.lede { max-width:760px; color:var(--text-2); font-size:clamp(15.5px,1.25vw,18px); margin:18px 0 26px }
+.steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px }
+.step { border:1px solid var(--border); border-radius:14px; padding:16px 18px; background:var(--surface) }
+.step span { display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--green-bg);
+  color:var(--green); font:600 13px var(--mono); margin-right:8px } .step b { font-size:15px }
+.step p { margin:8px 0 0; color:var(--muted); font-size:13.5px }
+.cols { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(0,1fr); gap:18px; align-items:start; margin-top:18px }
+.cols.detail { grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) }
+.sticky { position:sticky; top:82px }
+.crumb { margin:22px 0 0; font-size:14px } .crumb a { color:var(--text-2); text-decoration:none } .crumb a:hover { color:var(--green) }
+h2 { font-size:15px; font-weight:600; margin:0 0 14px; display:flex; align-items:center; gap:8px }
+.count { font:600 12px var(--mono); color:var(--muted); background:var(--surface-2); border-radius:999px; padding:2px 8px }
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px; margin-bottom:18px }
+.verdict { position:relative; overflow:hidden }
+.verdict.ok { border-color:color-mix(in srgb, var(--green) 60%, transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--green) 20%, transparent), 0 40px 90px -60px var(--green) }
+.verdict.bad { border-color:var(--red); box-shadow:0 40px 90px -60px var(--red) }
+.verdict h2 { font-family:var(--serif); font-weight:400; font-size:32px; margin:12px 0 4px }
+.verdict.ok h2 { color:var(--green) } .verdict.bad h2 { color:var(--red) }
+.verdict .sum { margin:0 0 4px; font-weight:600; color:var(--text) }
+.seal { width:64px; height:64px; border-radius:18px; display:grid; place-items:center; background:var(--green-bg) }
+.verdict.bad .seal { background:var(--red-bg) }
+.seal svg { width:38px; height:38px; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round }
+.verdict.ok .seal path:first-child { fill:var(--green-deep); stroke:var(--green) }
+.verdict.bad .seal path:first-child { fill:#5a1a14; stroke:var(--red) }
+.seal .mark { stroke:#fff; stroke-width:2.4 }
+.checks { margin-top:14px }
+.muted { color:var(--muted) } .small { font-size:13px } .mono { font-family:var(--mono); font-size:12.5px; word-break:break-all }
+.check { display:grid; grid-template-columns:16px 112px minmax(0,1fr) auto; gap:4px 10px; align-items:baseline; padding:10px 12px; border-radius:10px;
+  background:var(--surface-2); margin-bottom:7px; animation:rise .45s cubic-bezier(.2,.8,.2,1) both }
+.check:nth-child(2) { animation-delay:.08s } .check:nth-child(3) { animation-delay:.16s }
+.check:nth-child(4) { animation-delay:.24s } .check:nth-child(5) { animation-delay:.32s }
+@keyframes rise { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+@media (prefers-reduced-motion: reduce) { .check { animation:none } }
+.check > span:first-child { font-weight:700 } .check ul { grid-column:1 / -1 }
+.check.ok > span:first-child { color:var(--green) } .check.bad > span:first-child { color:var(--red) }
+.check ul { flex-basis:100%; margin:6px 0 0; color:var(--muted); font-size:13px; padding-left:18px }
+.kv { display:grid; grid-template-columns:150px 1fr; gap:14px; padding:9px 0; border-bottom:1px solid var(--border) }
+.kv:last-of-type { border-bottom:0 } .kv span:first-child { color:var(--muted) }
+.badge { display:inline-block; min-width:72px; text-align:center; font:600 11.5px var(--mono); padding:3px 8px; border-radius:6px;
+  background:var(--surface-2) }
 .badge.allow { color:var(--green); background:var(--green-bg) } .badge.block { color:var(--red); background:var(--red-bg) }
 .badge.contain { color:var(--crimson); background:var(--crimson-bg) }
-.rows .row { display:grid; grid-template-columns:90px 190px 110px 1fr 140px; gap:10px; padding:8px 6px;
-  border-bottom:1px solid var(--border); color:var(--text); text-decoration:none; align-items:center }
-.rows .row:hover { background:var(--surface-2) }
-.btn { background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:8px;
-  padding:8px 14px; font:inherit; cursor:pointer } .btn-sm { padding:4px 10px; font-size:13px }
+.rows .row { display:grid; grid-template-columns:92px minmax(0,1fr) auto; gap:14px; padding:11px 10px;
+  border-bottom:1px solid var(--border); color:var(--text); text-decoration:none; align-items:center; border-radius:10px }
+.row .who, .row .amt { display:flex; flex-direction:column; min-width:0 } .row .amt { text-align:right }
+.row .who b, .row .amt b { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.row .who .mono { font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal }
+.row .amt .muted { font:11.5px var(--mono) }
+.rows .row:last-child { border-bottom:0 } .rows .row:hover { background:var(--surface-2) }
+.btn { background:var(--surface-2); color:var(--text); border:1px solid var(--border-2); border-radius:10px;
+  padding:9px 16px; font:600 14px Inter,sans-serif; cursor:pointer } .btn:hover { border-color:var(--green); color:var(--green) }
+.btn-sm { padding:5px 12px; font-size:13px }
 .lookup { display:flex; gap:8px; margin-bottom:10px } input, textarea { flex:1; width:100%; background:var(--bg);
-  color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font:13px var(--mono) }
-textarea { margin:8px 0 } pre { background:var(--bg); padding:12px; border-radius:8px; overflow:auto; font:12px var(--mono) }
-@media (max-width:640px) { .rows .row { grid-template-columns:1fr 1fr } .kv { grid-template-columns:1fr } }
+  color:var(--text); border:1px solid var(--border-2); border-radius:10px; padding:9px 12px; font:13px var(--mono) }
+summary { cursor:pointer; color:var(--text-2); font-size:14px }
+textarea { margin:8px 0 }
+pre { background:var(--bg); padding:12px; border-radius:10px; overflow:auto; font:11.5px var(--mono); border:1px solid var(--border) }
+@media (max-width:1000px) { .cols, .cols.detail { grid-template-columns:1fr } .sticky { position:static } .steps { grid-template-columns:1fr } }
+@media (max-width:640px) { .check { grid-template-columns:16px minmax(0,1fr) } .check b { grid-column:2 } .kv { grid-template-columns:1fr; gap:2px } .bar nav a { display:none } }
 """
