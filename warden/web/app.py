@@ -45,7 +45,7 @@ TAGLINE = "Warden doesn't ask you to trust your AI agents. It makes that trust e
 RAIL_GROUPS = [
     ("airwallex", "Airwallex", ("transfer", "card")),
     ("airi", "Visa VIC · Airi", ("vic_checkout",)),
-    ("metal", "Metal x402", ("x402",)),
+    ("metal", "Alta x402", ("x402",)),
 ]
 DECISION_EVENTS = ("decision", "approval", "denial")
 MCP_PATH = "/mcp"
@@ -155,7 +155,7 @@ def offline_services(workdir: Path | None = None) -> Services:
              "expected": "CARD_INACTIVE", "got": "CARD_INACTIVE" if frozen else "APPROVED (card still active)"},
             {"title": "$40 gift-shop charge on research-bot's card", "lock": "Airwallex merchant categories",
              "expected": "MERCHANT_CATEGORY_NOT_ALLOWED", "got": "MERCHANT_CATEGORY_NOT_ALLOWED"},
-            {"title": "Data payment under procurement-bot's Metal mandate", "lock": "Metal on-chain mandate",
+            {"title": "Data payment under procurement-bot's Alta mandate", "lock": "Alta on-chain mandate",
              "expected": "mandate_revoked", "got": "mandate_revoked" if frozen else "PAID (mandate still bound)"},
             {"title": "$60 Visa credential requested straight from Airi; nobody confirms", "lock": "Airi passkey",
              "expected": "NO_PASSKEY", "got": "NO_PASSKEY: Airi issued no credential; mandate cancelled"},
@@ -191,7 +191,7 @@ def live_services(lw: Any) -> Services:
         return live.commit_hire(lw, agent_id, role, instruction, d, validated, confirm=True)
 
     def fire(warden: Warden, agent_id: str, reason: str) -> dict[str, Any]:
-        results = warden.contain(agent_id, reason)  # freezes its card and revokes its Metal mandate
+        results = warden.contain(agent_id, reason)  # freezes its card and revokes its Alta mandate
         if agent_id in lw.registry.agents:
             lw.registry.fire(agent_id)
         return results
@@ -223,7 +223,7 @@ def live_services(lw: Any) -> Services:
 
 
 LOCK_NAMES = {"CARD_INACTIVE": "Airwallex card status", "MERCHANT_CATEGORY_NOT_ALLOWED": "Airwallex merchant categories",
-              "revoked": "Metal on-chain mandate", "NO_PASSKEY": "Airi passkey (the human confirms every Visa checkout)"}
+              "revoked": "Alta on-chain mandate", "NO_PASSKEY": "Airi passkey (the human confirms every Visa checkout)"}
 
 
 def _read_json(path: Path) -> Any:

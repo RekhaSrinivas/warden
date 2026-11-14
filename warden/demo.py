@@ -1,7 +1,7 @@
 """The demo story, narrated, with every real id saved to data/evidence.json.
 
     python -m warden.demo --offline          simulated rails, heuristic risk reader (no keys needed)
-    python -m warden.demo --live --reset     Airwallex sandbox, Claude, Metal testnet: hires both agents
+    python -m warden.demo --live --reset     Airwallex sandbox, Claude, Alta testnet: hires both agents
                                              again with fresh cards and mandates, and starts a new audit log
     python -m warden.demo --live             same, reusing the agents hired last time (their cards may be frozen)
 
@@ -171,7 +171,7 @@ def run_story(story: Story) -> None:
                 lambda: story.probes.card_charge(w.PROCUREMENT, "25", w.MCC_STATIONERY))
     story.prove("A $40 gift-shop charge on research-bot's card", "MERCHANT_CATEGORY_NOT_ALLOWED",
                 lambda: story.probes.card_charge(w.RESEARCH, "40", w.MCC_GIFT_SHOP))
-    story.prove("A data payment under procurement-bot's revoked Metal mandate", "revoked",
+    story.prove("A data payment under procurement-bot's revoked Alta mandate", "revoked",
                 lambda: story.probes.metal_payment(w.PROCUREMENT))
     if story.probes.airi_checkout is not None:
         story.prove("procurement-bot asks Airi directly for a $60 Visa credential; nobody confirms", "NO_PASSKEY",
@@ -279,7 +279,7 @@ def live_story(fresh: bool) -> tuple[Story, dict[str, Any]]:
         receipts = live.issue_receipts(lw)
         return {"receipts": receipts, "cases": [c.to_json() for c in live.reconcile_and_recover(lw)]}
 
-    rails = "Airwallex sandbox + Claude + Metal testnet" + (" + Airi (Visa VIC)" if lw.airi else "")
+    rails = "Airwallex sandbox + Claude + Alta testnet" + (" + Airi (Visa VIC)" if lw.airi else "")
     story = Story(lw.warden, probes, hire, recover, f"live: {rails}")
     extra = {"beneficiaries": lw.state["beneficiaries"], "metal_account": lw.state["metal"]["account"],
              "airi": "configured" if lw.airi else "not allowlisted yet: VIC checkout skipped",

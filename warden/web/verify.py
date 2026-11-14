@@ -5,7 +5,7 @@ Checks shown per receipt:
   2. receipt hash (the body has not been edited)
   3. chain link to the previous receipt (none removed or reordered)
   4. the audit-log entry it was issued from exists, and the audit chain is intact
-  5. Metal receipts only: the payment is re-verified on chain against the human-signed mandate
+  5. Alta (formerly Metal) receipts only: the payment is re-verified on chain against the human-signed mandate
 
 Mount with `app.include_router(create_verify_router())`. The page shows no secrets:
 receipts only carry hashed or masked identifiers.
@@ -80,7 +80,7 @@ class OnchainVerifier:
 
     def check(self, tx: str, credential_ref: str | None) -> OnchainResult:
         if not _TX.match(tx or ""):
-            return OnchainResult(False, [], "not a Metal transaction hash")
+            return OnchainResult(False, [], "not a Alta transaction hash")
         cache = self._load_cache()
         if tx in cache:
             return OnchainResult(**cache[tx]["result"])
@@ -222,7 +222,7 @@ def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path
         receipt = _find(receipt_id)
         tx = (receipt.body.get("execution") or {}).get("transaction")
         if not tx:
-            raise HTTPException(404, "This receipt has no Metal transaction.")
+            raise HTTPException(404, "This receipt has no Alta transaction.")
         return JSONResponse(onchain.check(tx, receipt.body.get("metal_credential_ref")).to_json())
 
     @router.get("/verify/{receipt_id}", response_class=HTMLResponse)
@@ -267,11 +267,11 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
     onchain = ""
     if e.get("transaction"):
         onchain = f"""<div class="check pending" id="onchain"><span>…</span><b>On chain</b>
-          <button class="btn btn-sm" onclick="onchainCheck()">Verify on Metal testnet</button></div>
+          <button class="btn btn-sm" onclick="onchainCheck()">Verify on Alta testnet</button></div>
           <script>
           async function onchainCheck() {{
             const box = document.getElementById('onchain');
-            box.innerHTML = '<span>…</span><b>On chain</b> Reading the Metal testnet…';
+            box.innerHTML = '<span>…</span><b>On chain</b> Reading the Alta testnet…';
             const res = await fetch('/verify/{html.escape(receipt.id)}/onchain');
             const data = await res.json();
             box.className = 'check ' + (data.verified ? 'ok' : 'bad');
@@ -301,13 +301,13 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
     ]
     ids = [(k, v) for k, v in [
         ("Transfer", e.get("transfer_id")), ("Card transaction", e.get("card_transaction_id")),
-        ("Metal transaction", e.get("transaction")), ("Airi mandate", e.get("airi_mandate_id")),
+        ("Alta transaction", e.get("transaction")), ("Airi mandate", e.get("airi_mandate_id")),
         ("Mandate hash", b.get("mandate_hash")), ("Evidence hash", b.get("evidence_hash")),
         ("Receipt hash", receipt.receipt_hash), ("Previous receipt", b.get("prev_receipt_hash")),
         ("Audit entry", (b.get("audit") or {}).get("entry_hash"))] if v]
     id_html = "".join(f'<div class="kv"><span>{html.escape(k)}</span><span class="mono">'
                       + (f'<a href="{html.escape(e["explorer"])}" target="_blank" rel="noopener">{html.escape(str(v))}</a>'
-                         if k == "Metal transaction" and e.get("explorer") else html.escape(str(v)))
+                         if k == "Alta transaction" and e.get("explorer") else html.escape(str(v)))
                       + "</span></div>" for k, v in ids)
     field_html = "".join(f'<div class="kv"><span>{k}</span><span>{v}</span></div>' for k, v in fields)
     return f"""
@@ -329,7 +329,7 @@ def _page(title: str, body: str) -> str:
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>{_CSS}</style></head><body><main>
 <header><a href="/verify" class="brand">Warden <span>Receipt verification</span></a>
-<p class="muted">Check any Intent Receipt without trusting Warden: the signature, the chain and, for Metal payments, the chain itself.</p></header>
+<p class="muted">Check any Intent Receipt without trusting Warden: the signature, the chain and, for Alta payments, the chain itself.</p></header>
 {body}</main></body></html>"""
 
 

@@ -9,7 +9,7 @@ const RAILS = {
   transfer: { label: "Bank transfer · Airwallex", icon: '<path d="M3 10h18"/><path d="m12 3 9 5H3z"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 21h18"/>' },
   card: { label: "Virtual card · Airwallex", icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>' },
   vic_checkout: { label: "Checkout · Visa VIC via Airi", icon: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2l2.4 11h11l2-8H6.3"/>' },
-  x402: { label: "Pay-per-call · Metal x402", icon: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>' },
+  x402: { label: "Pay-per-call · Alta x402", icon: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>' },
 };
 const BADGES = { ALLOW: "Allowed", STEP_UP: "Needs approval", BLOCK: "Blocked", CONTAIN: "Agent contained" };
 const CASE_WORDS = {
@@ -99,7 +99,7 @@ function renderHeader() {
     .map((r) => `<span class="chip ${esc(r.status.split(" ")[0])}"><span class="dot"></span>${esc(r.label)}<span class="state">${esc(word[r.status] || r.status)}</span></span>`)
     .join("");
   const pill = $("mode-pill");
-  pill.textContent = state.mode === "live" ? "Live · Airwallex sandbox · Metal testnet · Claude" : "Offline demo · simulated rails";
+  pill.textContent = state.mode === "live" ? "Live · Airwallex sandbox · Alta testnet (formerly Metal) · Claude" : "Offline demo · simulated rails";
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
   $("btn-reset").hidden = state.mode === "live";
   $("btn-locks").hidden = state.mode === "live";
@@ -107,15 +107,16 @@ function renderHeader() {
   if (m) {
     const tile = (cls, label, v, note) => `<div class="tile ${cls}"><span class="label">${label}</span>
       <span class="value">${esc(money(v.amount ?? v))}</span><span class="note">${note}</span></div>`;
+    const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
     $("protect").innerHTML = [
       tile("hero", "Money protected", m.protected, "stopped + double payments + declined live + recovered"),
-      tile("bad", "Stopped", m.stopped, `${m.stopped.count} payments blocked or agent contained`),
-      tile("bad", "Double payments prevented", m.double_payments, `${m.double_payments.count} retries absorbed`),
-      tile("bad", "Declined in real time", m.declined_live, `${m.declined_live.count} card charges without a receipt`),
+      tile("bad", "Stopped", m.stopped, `${n(m.stopped.count, "payment", "payments")} blocked or agent contained`),
+      tile("bad", "Double payments prevented", m.double_payments, `${n(m.double_payments.count, "retry", "retries")} absorbed`),
+      tile("bad", "Declined in real time", m.declined_live, `${n(m.declined_live.count, "card charge", "card charges")} without a receipt`),
       tile("warn", "Held for a human", m.held, `${m.held.count} waiting in the inbox`),
-      tile("warn", "Under dispute", m.under_dispute, `${m.under_dispute.count} charges no human authorised`),
+      tile("warn", "Under dispute", m.under_dispute, `${n(m.under_dispute.count, "charge", "charges")} no human authorised`),
       tile("ok", "Recovered", m.recovered, "counted only when Airwallex reports WON"),
-      tile("ok", "Paid within mandate", m.paid, `${m.paid.count} payments`),
+      tile("ok", "Paid within mandate", m.paid, n(m.paid.count, "payment", "payments")),
     ].join("");
   }
   const pk = state.passkey;
@@ -137,7 +138,7 @@ function agentCard(a) {
     : "";
   const metal = a.metal
     ? `<div class="rail-line"><span class="rl-icon"><svg viewBox="0 0 24 24">${RAILS.x402.icon}</svg></span>
-        <span>Metal mandate ${a.metal.explorer ? `<a href="${esc(a.metal.explorer)}" target="_blank" rel="noopener" class="mono">${esc(a.metal.mandate_id)} ↗</a>` : `<span class="mono">${esc(a.metal.mandate_id)}</span>`}</span>
+        <span>Alta mandate ${a.metal.explorer ? `<a href="${esc(a.metal.explorer)}" target="_blank" rel="noopener" class="mono">${esc(a.metal.mandate_id)} ↗</a>` : `<span class="mono">${esc(a.metal.mandate_id)}</span>`}</span>
         <span class="muted">${a.contained ? "revoked on-chain" : a.metal.cap ? `${esc(a.metal.cap)} USDZ/call · ${esc(a.metal.budget)} USDZ budget` : "bound"}</span></div>`
     : "";
   const armed = (fireArmed[a.id] || 0) > Date.now();
@@ -170,7 +171,9 @@ function renderAgents() {
   const options = state.agents.map((a) => `<option value="${esc(a.id)}">${esc(a.id)}${a.contained ? " (contained)" : ""}</option>`).join("");
   const keep = $("attack-agent").value;
   $("attack-agent").innerHTML = options;
+  const active = state.agents.find((a) => !a.contained);
   if (keep && state.agents.some((a) => a.id === keep)) $("attack-agent").value = keep;
+  else if (active) $("attack-agent").value = active.id;  // never offer a fired agent by default
   const filterKeep = $("feed-filter").value || "all";
   $("feed-filter").innerHTML = `<option value="all">all agents</option>${state.agents.map((a) => `<option value="${esc(a.id)}">${esc(a.id)}</option>`).join("")}`;
   $("feed-filter").value = [...$("feed-filter").options].some((o) => o.value === filterKeep) ? filterKeep : "all";
@@ -213,7 +216,7 @@ function draftView(d) {
       </div>
       <ul class="changes">${changes}${errors}</ul>
       <button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}" ${d.errors.length ? "disabled" : ""}>
-        Confirm and provision ${state.mode === "live" ? "a real card and Metal mandate" : "(simulated)"}
+        Confirm and provision ${state.mode === "live" ? "a real card and Alta mandate" : "(simulated)"}
       </button>
     </div>`;
 }
@@ -229,7 +232,7 @@ $("btn-draft").addEventListener("click", async (event) => {
 $("hire-draft").addEventListener("click", async (event) => {
   const btn = event.target.closest("#btn-confirm");
   if (!btn) return;
-  if (state.mode === "live" && !confirm("Provision a real Airwallex sandbox card and bind a Metal mandate on testnet?")) return;
+  if (state.mode === "live" && !confirm("Provision a real Airwallex sandbox card and bind a Alta mandate on testnet?")) return;
   await busy(btn, "Provisioning…", async () => {
     const { ok, data } = await api("/api/hire/confirm", { agent_id: btn.dataset.agent });
     $("hire-draft").innerHTML = ok ? `<p class="ok">Hired ${esc(data.agent_id)}.</p>` : `<p class="bad">${esc(data.detail)}</p>`;
@@ -531,7 +534,7 @@ function renderLocks() {
     <article class="lock-card ${r.held ? "held" : "open"}">
       <div class="lock-icon">${LOCK_ICON}</div>
       <div>
-        <h4>${esc(r.title)}</h4>
+        <h4>${esc(r.title.replace("Metal mandate", "Alta mandate"))}</h4>
         <p class="muted small">${esc(r.lock || "")}</p>
         <p>rail answered <span class="code ${r.held ? "violation" : ""}">${esc(r.got)}</span></p>
         <p class="${r.held ? "ok" : "bad"}">${r.held ? "Independent lock held" : `Expected ${esc(r.expected)}`}</p>
