@@ -235,3 +235,10 @@ def test_copied_card_details_used_outside_warden_are_declined_in_real_time(tmp_p
     assert state["protection"]["declined_live"]["count"] == 1
     assert state["authorizations"][0]["response_status"] == "DECLINED"
     assert client.post("/api/card-outside-warden", json={"agent_id": "ghost-bot"}).status_code == 404
+
+
+def test_console_offers_the_guided_tour(tmp_path):
+    client, _ = make_client(tmp_path)
+    page = client.get("/console").text
+    assert 'id="btn-tour"' in page and "/static/tour.js?v=" in page and "/static/tour.css?v=" in page
+    assert client.get("/static/tour.js").status_code == 200 and client.get("/static/tour.css").status_code == 200

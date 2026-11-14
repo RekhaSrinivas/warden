@@ -1,0 +1,98 @@
+/* Guided tour for the console (tour.js): a spotlight ring on the panel and a dark coach-mark card beside it.
+   The card is dark in both themes; the ring takes the theme's brand green so it shows on paper and on black. */
+
+:root {
+  --tour-dim: rgba(21, 23, 28, 0.5);
+  --tour-ring: #0f6e56;
+  --tour-halo: rgba(43, 212, 164, 0.5);
+  --tour-glow: rgba(15, 110, 86, 0.25);
+}
+:root[data-theme="dark"] {
+  --tour-dim: rgba(0, 0, 0, 0.62);
+  --tour-ring: #2bd4a4;
+  --tour-halo: rgba(43, 212, 164, 0.22);
+  --tour-glow: rgba(43, 212, 164, 0.32);
+}
+
+/* --- the header button, a sibling of the theme switch ------------------------------------------- */
+.tour-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px 0 11px; flex: none;
+  border-radius: 999px; border: 1px solid var(--line-strong); background: var(--card); color: var(--ink-2);
+  font: inherit; font-weight: 600; font-size: 13.5px; line-height: 1; cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.tour-btn svg { width: 15px; height: 15px; flex: none; }
+.tour-btn:hover, .tour-btn[aria-expanded="true"] { color: var(--brand); border-color: var(--brand); }
+.tour-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* --- spotlight: the ring's huge shadow dims everything around the target ---------------------------- */
+.tour-ring {
+  position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 1000; pointer-events: none; border-radius: 16px;
+  box-shadow: 0 0 0 2px var(--tour-ring), 0 0 0 7px var(--tour-halo), 0 0 30px 8px var(--tour-glow), 0 0 0 9999px var(--tour-dim);
+  animation: tour-fade 0.25s ease;
+}
+.tour-ring.is-off { box-shadow: 0 0 0 9999px var(--tour-dim); }
+.tour-ring.glide { transition: top 0.32s cubic-bezier(.3, .7, .2, 1), left 0.32s cubic-bezier(.3, .7, .2, 1), width 0.32s cubic-bezier(.3, .7, .2, 1), height 0.32s cubic-bezier(.3, .7, .2, 1); }
+@keyframes tour-fade { from { opacity: 0; } }
+
+/* --- the card ----------------------------------------------------------------------------------- */
+.tour-card {
+  --tc-bg: #12161a; --tc-line: rgba(243, 239, 230, 0.14); --tc-ink: #f3efe6; --tc-muted: #aaa598; --tc-accent: #2bd4a4;
+  position: fixed; top: 0; left: 0; z-index: 1001; box-sizing: border-box; width: 360px; padding: 16px 18px 14px;
+  border-radius: 14px; background: var(--tc-bg); color: var(--tc-ink); border: 1px solid var(--tc-line);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 18px 50px -12px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.3);
+  font: 14px/1.5 var(--sans, "Inter", system-ui, sans-serif); text-align: left;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tour-card:focus { outline: none; }
+.tour-card:focus-visible { outline: 2px solid var(--tc-accent); outline-offset: 3px; }
+.tour-card.is-moving { opacity: 0; transform: translateY(6px); pointer-events: none; }
+.tour-card.tour-still, .tour-ring.tour-still { transition: none; animation: none; }
+.tour-card.tour-still.is-moving { transform: none; }
+
+.tour-body { max-height: max(64px, calc(100vh - 150px)); overflow-y: auto; }  /* only matters on a tiny screen */
+.tour-meta { display: flex; align-items: center; gap: 6px; padding-right: 30px; font-size: 12.5px; font-weight: 600; color: var(--tc-muted); }
+.tour-section { color: var(--tc-accent); }
+.tour-title { margin: 6px 0 4px; font-family: var(--sans, "Inter", system-ui, sans-serif); font-size: 17px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; color: var(--tc-ink); }
+.tour-text { margin: 0; font-size: 14px; color: #d6d1c6; }
+
+.tour-x {
+  position: absolute; top: 9px; right: 9px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--tc-muted); cursor: pointer;
+}
+.tour-x svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.tour-x:hover { color: var(--tc-ink); background: rgba(255, 255, 255, 0.07); }
+
+.tour-nav { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.tour-keys { margin-right: auto; font-size: 11.5px; color: var(--tc-muted); white-space: nowrap; }
+.tour-keys kbd {
+  display: inline-block; min-width: 18px; margin-right: 2px; padding: 0 4px; border-radius: 4px; text-align: center;
+  font: 600 11px/16px var(--sans, "Inter", system-ui, sans-serif); color: var(--tc-ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--tc-line);
+}
+.tour-back, .tour-next {
+  padding: 7px 14px; border-radius: 9px; font: inherit; font-size: 13.5px; font-weight: 650; line-height: 1.2; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.tour-back { background: transparent; color: var(--tc-ink); border: 1px solid var(--tc-line); }
+.tour-back:hover { border-color: rgba(243, 239, 230, 0.35); }
+.tour-next { min-width: 72px; background: var(--tc-accent); color: #032119; border: 1px solid var(--tc-accent); }
+.tour-next:hover { background: #5be3bd; border-color: #5be3bd; }
+.tour-x:focus-visible, .tour-back:focus-visible, .tour-next:focus-visible { outline: 2px solid var(--tc-accent); outline-offset: 2px; }
+
+/* the arrow points from the card's edge to the target; tour.js sets the side and --tour-arrow */
+.tour-arrow {
+  position: absolute; width: 12px; height: 12px; background: var(--tc-bg); border: 1px solid var(--tc-line);
+  transform: rotate(45deg); pointer-events: none;
+}
+.tour-card[data-side="bottom"] .tour-arrow { top: -7px; left: calc(var(--tour-arrow, 50%) - 6px); border-right: 0; border-bottom: 0; }
+.tour-card[data-side="top"] .tour-arrow { bottom: -7px; left: calc(var(--tour-arrow, 50%) - 6px); border-left: 0; border-top: 0; }
+.tour-card[data-side="right"] .tour-arrow { left: -7px; top: calc(var(--tour-arrow, 50%) - 6px); border-top: 0; border-right: 0; }
+.tour-card[data-side="left"] .tour-arrow { right: -7px; top: calc(var(--tour-arrow, 50%) - 6px); border-bottom: 0; border-left: 0; }
+.tour-card[data-side="over"] .tour-arrow, .tour-card:not([data-side]) .tour-arrow { display: none; }
+
+@media (max-width: 480px) {
+  .tour-keys { display: none; }
+  .tour-nav { justify-content: flex-end; }
+  .tour-card { padding: 14px 16px 12px; }
+}
+a.tour-btn { text-decoration: none; }
