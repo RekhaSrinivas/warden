@@ -718,6 +718,14 @@ function pop(x, y, html, tone) {
   setTimeout(() => el.remove(), 3400);
 }
 
+function verdict(html, tone) {  // one verdict card under the shield; the newest replaces the last
+  const el = $("shield-caption");
+  el.className = `shield-caption verdict ${tone}`;
+  el.innerHTML = html;
+  clearTimeout(verdict.t);
+  verdict.t = setTimeout(() => { el.className = "shield-caption"; el.textContent = "checks every payment"; }, 3600);
+}
+
 function flash(el, cls, ms = 900) {
   if (!el) return;
   el.classList.remove(cls);
@@ -763,23 +771,23 @@ async function animateDecision(item) {
   flash(document.querySelector(`.agent-node[data-agent="${CSS.escape(p.agent_id)}"]`), "emit", 700);
   await travel(document.getElementById(`in-${p.agent_id}`), dot, 900);
   const shield = $("shield");
-  const at = anchorOf(shield, "left");
   dot.setAttribute("class", `fdot-pulse ${tone}`);
+  shield.classList.remove("hit-ok", "hit-bad", "hit-crit", "hit-hold");
   flash(shield, `hit-${tone}`, 1000);
   if (action === "ALLOW" && landed(item)) {
+    verdict(`✓ ${esc(money(p.amount, p.currency))} ${esc(p.payee_name)} · <b>within mandate</b><small>${esc(reasonOf(item))}</small>`, "ok");
     await travel(document.getElementById(`out-${p.rail}`), dot, 800);
     const rail = document.querySelector(`.rail-node[data-rail="${p.rail}"]`);
     flash(rail, "landed", 1200);
     if (rail) {
       const r = anchorOf(rail, "left");
-      pop(r.x + 70, r.y - 30, `✓ ${esc(money(p.amount, p.currency))} paid`, "ok");
+      pop(r.x - 16, r.y, `✓ ${esc(money(p.amount, p.currency))} paid`, "ok");
     }
     dot.remove();
   } else {
     const label = action === "STEP_UP" ? "held for a human" : action === "CONTAIN" ? "agent fired"
       : action === "ALLOW" ? "rail refused" : "blocked";
-    pop(at.x - 6, at.y - 46 + (flow.shown++ % 3) * 22,
-      `${action === "STEP_UP" ? "⏸" : "✕"} ${esc(money(p.amount, p.currency))} ${esc(p.payee_name)} · <b>${esc(label)}</b><small>${esc(reasonOf(item))}</small>`, tone);
+    verdict(`${action === "STEP_UP" ? "⏸" : "✕"} ${esc(money(p.amount, p.currency))} ${esc(p.payee_name)} · <b>${esc(label)}</b><small>${esc(reasonOf(item))}</small>`, tone);
     if (action === "CONTAIN") flash(document.querySelector(`.agent-node[data-agent="${CSS.escape(p.agent_id)}"]`), "struck", 1600);
     dot.classList.add("burst");
     await sleep(600);
