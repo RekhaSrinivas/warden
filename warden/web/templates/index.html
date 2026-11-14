@@ -92,10 +92,10 @@
         <div id="agents" class="agents"></div>
         <div class="panel hire-panel">
           <h3>Hire an agent</h3>
-          <p class="hint">Describe the job in plain English. Claude drafts the mandate; code clamps it to company policy; nothing is provisioned until you confirm.</p>
+          <p class="hint">Describe the job in plain English. Claude drafts the mandate; code clamps it to company policy; nothing is provisioned until you confirm. <b>Only the job description decides what the agent may buy</b>; the team label is just a label.</p>
           <div class="field-row">
             <input id="hire-id" class="input" placeholder="agent name, e.g. travel-bot" autocomplete="off">
-            <input id="hire-role" class="input" placeholder="role, e.g. travel" autocomplete="off">
+            <input id="hire-role" class="input" placeholder="team label, e.g. Sales" title="A label shown on the agent's card. It grants nothing." autocomplete="off">
           </div>
           <textarea id="hire-text" class="input" rows="4" placeholder="Book flights and hotels for the sales team, max $400 per purchase and $1,500 a week, USD only. Anything over $300 needs me."></textarea>
           <button class="btn btn-ghost" id="btn-draft">Draft mandate</button>

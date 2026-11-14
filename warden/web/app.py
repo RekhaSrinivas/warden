@@ -66,6 +66,11 @@ class AgentBody(BaseModel):
     agent_id: str = w.PROCUREMENT
 
 
+class ConfirmBody(BaseModel):
+    agent_id: str
+    mandate_id: str  # the draft the manager saw; a newer or older draft is refused
+
+
 class FireBody(BaseModel):
     agent_id: str
     reason: str = "Fired from the dashboard"
@@ -541,12 +546,14 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
                           "errors": validated.errors, "mandate": validated.mandate.to_dict()})
 
     @app.post("/api/hire/confirm")
-    def hire_confirm(body: AgentBody) -> dict[str, Any]:
+    def hire_confirm(body: ConfirmBody) -> dict[str, Any]:
         """Provisions exactly the mandate the manager just saw; nothing is re-drafted."""
-        held = app.state.drafts.pop(body.agent_id, None)
+        held = app.state.drafts.get(body.agent_id)
         if held is None:
             raise HTTPException(404, "Draft a mandate first")
-        role, instruction, draft, validated = held
+        if held[3].mandate.mandate_id != body.mandate_id:
+            raise HTTPException(409, "The job changed since this draft; draft the mandate again")
+        role, instruction, draft, validated = app.state.drafts.pop(body.agent_id)
         try:
             hired = board().services.commit_hire(board().warden, body.agent_id, role, instruction, draft, validated)
         except h.HireError as e:

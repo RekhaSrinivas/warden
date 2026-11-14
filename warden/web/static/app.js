@@ -219,7 +219,7 @@ function draftView(d) {
         ? `<p class="refused"><b>Not provisioned.</b> Code refused this mandate: ${esc(d.errors.join(" "))}
              Warden only issues a card it can actually lock down. Rephrase the job and draft again.</p>
            <button class="btn btn-wide" disabled>Can't provision this mandate</button>`
-        : `<button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}">
+        : `<button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}" data-mandate="${esc(m.mandate_id)}">
              Confirm and provision ${state.mode === "live" ? "a real card and Alta mandate" : "(simulated)"}
            </button>`}
     </div>`;
@@ -233,12 +233,20 @@ $("btn-draft").addEventListener("click", async (event) => {
   });
 });
 
+// A draft is only good for the exact words it was drafted from: edit anything and it is withdrawn.
+for (const id of ["hire-id", "hire-role", "hire-text"]) {
+  $(id).addEventListener("input", () => {
+    if (!$("btn-confirm") && !$("hire-draft").querySelector(".refused")) return;
+    $("hire-draft").innerHTML = `<p class="muted small stale">You changed the job, so the old draft was withdrawn. Press <b>Draft mandate</b> again.</p>`;
+  });
+}
+
 $("hire-draft").addEventListener("click", async (event) => {
   const btn = event.target.closest("#btn-confirm");
   if (!btn) return;
-  if (state.mode === "live" && !confirm("Provision a real Airwallex sandbox card and bind a Alta mandate on testnet?")) return;
+  if (state.mode === "live" && !confirm("Provision a real Airwallex sandbox card and bind an Alta mandate on testnet?")) return;
   await busy(btn, "Provisioning…", async () => {
-    const { ok, data } = await api("/api/hire/confirm", { agent_id: btn.dataset.agent });
+    const { ok, data } = await api("/api/hire/confirm", { agent_id: btn.dataset.agent, mandate_id: btn.dataset.mandate });
     $("hire-draft").innerHTML = ok ? `<p class="ok">Hired ${esc(data.agent_id)}.</p>` : `<p class="bad">${esc(data.detail)}</p>`;
   });
   refresh();

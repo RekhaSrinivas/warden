@@ -90,9 +90,17 @@ def test_hire_shows_the_validator_changes_then_provisions_exactly_that(tmp_path)
                                                  "instruction": instruction}).json()
     assert draft["agent_id"] == "supplies-bot"
     assert float(draft["mandate"]["weekly_cap"]) == 2000 and draft["changes"]  # clamped to company policy, and said so
-    assert client.post("/api/hire/confirm", json={"agent_id": "supplies-bot"}).status_code == 200
-    assert warden.mandates["supplies-bot"].weekly_cap == 2000
-    assert client.post("/api/hire/confirm", json={"agent_id": "supplies-bot"}).status_code == 404  # one draft, one hire
+    seen = draft["mandate"]["mandate_id"]
+    # The manager edits the job and drafts again: the draft they first saw can no longer be confirmed.
+    newer = client.post("/api/hire/draft", json={"agent_id": "Supplies Bot", "role": "supplies",
+                                                 "instruction": instruction.replace("$400", "$300")}).json()
+    stale = client.post("/api/hire/confirm", json={"agent_id": "supplies-bot", "mandate_id": seen})
+    assert stale.status_code == 409 and "supplies-bot" not in warden.mandates
+    ok = client.post("/api/hire/confirm", json={"agent_id": "supplies-bot", "mandate_id": newer["mandate"]["mandate_id"]})
+    assert ok.status_code == 200
+    assert warden.mandates["supplies-bot"].weekly_cap == 2000 and warden.mandates["supplies-bot"].per_txn_cap == 300
+    again = client.post("/api/hire/confirm", json={"agent_id": "supplies-bot", "mandate_id": newer["mandate"]["mandate_id"]})
+    assert again.status_code == 404  # one draft, one hire
     taken = client.post("/api/hire/draft", json={"agent_id": w.RESEARCH, "instruction": instruction})
     assert taken.status_code == 409
 
