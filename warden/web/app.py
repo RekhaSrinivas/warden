@@ -649,6 +649,8 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
                           "codes": d.violations + [f for f in d.risk.flags if f not in d.violations]}
                          for s, d in results],
             }
+            red = _read_json(Path(__file__).resolve().parents[2] / "docs" / "redteam" / "scoreboard.json")
+            app.state.scorecard["redteam"] = (red or {}).get("summary")
         return app.state.scorecard
 
     @app.get("/api/stream")

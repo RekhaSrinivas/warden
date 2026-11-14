@@ -139,3 +139,21 @@ def test_a_real_mcp_client_pays_through_warden_and_a_tokenless_one_is_refused():
     assert state["flags"][0]["summary"] == "Lookalike domain asked for $300"
     assert app.state.board.warden.audit.verify() is None
     assert "4111" not in json.dumps(state)
+
+
+def test_only_what_a_human_approved_is_paid_without_asking():
+    gw, warden, rails = gateway()
+    unapproved = gw.request_payment(w.PROCUREMENT, PaymentRequest(
+        kind="invoice", amount="480", pay_to="Acme Office Supply", description="Invoice INV-2290",
+        reason="Vendor sent it.", source="email:billing@acme-supplies.com", source_text="Invoice INV-2290, $480."))
+    assert unapproved["outcome"] == "waiting_for_human" and unapproved["violations"] == []
+    message_only = gw.request_payment(w.PROCUREMENT, PaymentRequest(
+        kind="card", amount="45", pay_to="DeskGear", category="stationery", description="USB-C hub",
+        reason="IT asked.", source="email:it-helpdesk@acme-corp.com", source_text="Please buy a USB-C hub."))
+    assert message_only["outcome"] == "waiting_for_human"
+    assert rails["transfer"].executed == [] and rails["card"].executed == []
+    assert not warden.trust.strikes(w.PROCUREMENT, warden.clock())  # asking is not a strike
+    approved = gw.request_payment(w.PROCUREMENT, PaymentRequest(
+        kind="card", amount="85", pay_to="Staples", category="stationery", description="Toner", reason="PR-311",
+        references=["purchase_request:PR-311"], source="email:dana@acme-corp.com", source_text="Please order PR-311."))
+    assert approved["outcome"] == "paid"

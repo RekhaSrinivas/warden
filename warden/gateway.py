@@ -258,6 +258,7 @@ class Gateway:
                 extra.update(merchant_url=req.merchant_url, merchant_country="US",
                              items=_items(req.items, amount))
 
+        approved_by = []  # records that exist and match this request exactly
         for ref in refs:
             record = self.records.get(ref)
             if record is None:
@@ -265,7 +266,20 @@ class Gateway:
                 problems.append(f"{ref} does not exist")
                 continue
             evidence.append(Evidence(ref, True, record["text"]))
-            problems += [f"{ref}: {p}" for p in self._mismatch(record, kind, payee_id, payee_name, amount, req)]
+            found = self._mismatch(record, kind, payee_id, payee_name, amount, req)
+            problems += [f"{ref}: {p}" for p in found]
+            if not found:
+                approved_by.append(ref)
+
+        # Warden pays on its own only what a human already approved. An invoice that is not in the AP portal,
+        # or a purchase that only a message asked for, goes to a human first (no strike: it may be genuine).
+        needs_human = []
+        if kind == "invoice" and not approved_by:
+            needs_human.append("This invoice is not approved in the AP portal.")
+        elif kind in ("card", "online_checkout") and req.source_text.strip() and not approved_by:
+            needs_human.append("Only a message asked for this purchase; there is no approved purchase request.")
+        if needs_human:
+            extra["needs_human"] = needs_human
 
         if req.source_text.strip():
             evidence.append(Evidence(req.source.strip() or "agent:unspecified", False, req.source_text.strip()[:4000]))

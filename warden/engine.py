@@ -41,7 +41,7 @@ from typing import Any, Callable, Mapping
 from warden import approvals
 from warden.audit import AuditLog
 from warden.authorize import IntentBook
-from warden.decide import AGENT_CONTAINED, DUPLICATE, decide
+from warden.decide import AGENT_CONTAINED, DUPLICATE, Verdict, decide
 from warden.mandate import Mandate, SpendState, check, mandate_hash
 from warden.models import Action, Decision, Proposal, RiskReport
 from warden.rails.base import Rail, RailDeclined, RailError
@@ -127,6 +127,9 @@ class Warden:
         trust_before = self.trust.score(p.agent_id)
         verdict = decide(violations, risk, trust_before, self.trust.strikes(p.agent_id, now), p.amount,
                          mandate.auto_approve_cap)
+        if verdict.action is Action.ALLOW and p.extra.get("needs_human"):
+            # Within the mandate, but nothing a human approved backs it (see warden.gateway): ask, don't pay.
+            verdict = Verdict(Action.STEP_UP, ["A human must approve: " + " ".join(p.extra["needs_human"])], strike=False)
         decision = Decision(proposal_id=p.id, action=verdict.action, reasons=verdict.reasons, violations=violations,
                             risk=risk, trust_before=trust_before, trust_after=trust_before)
         if verdict.strike:

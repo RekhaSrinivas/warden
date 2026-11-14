@@ -579,7 +579,10 @@ $("btn-reset").addEventListener("click", async () => {
 async function loadScorecard() {
   const { ok, data } = await api("/api/scorecard");
   if (!ok) return;
-  $("scorecard").innerHTML = `<span class="score ${data.ok ? "ok" : "bad"}">${esc(data.summary)}</span>
+  const r = data.redteam;
+  const red = r ? `<span class="score ${r.attacks_paid_without_a_human === 0 ? "ok" : "bad"}">Red team: ${r.attacks} attacks, ${r.attacks_paid_without_a_human} paid without a human · ${r.legitimate_paid}/${r.legitimate} legitimate paid</span>
+    <span class="muted small">Claude as the attacker, plus expert attacks · <a href="https://github.com/RekhaSrinivas/warden/blob/main/docs/redteam/README.md" target="_blank" rel="noopener">every attack and verdict</a></span>` : "";
+  $("scorecard").innerHTML = `${red}<span class="score ${data.ok ? "ok" : "bad"}">${esc(data.summary)}</span>
     <span class="muted small">attack gauntlet on simulated rails · ${data.rows.length} scenarios</span>`;
 }
 
