@@ -62,3 +62,14 @@ class BrokenClient:
 def test_claude_failure_falls_back_to_the_deterministic_drafter():
     draft = h.draft_mandate(w.RESEARCH_INSTRUCTION, client=BrokenClient())
     assert draft.source == "offline" and draft.per_txn_cap == "50"
+
+
+def test_the_console_example_travel_job_drafts_a_usable_mandate():
+    # The placeholder in the console's hire box must always produce an agent that can be provisioned.
+    html = open("warden/web/templates/index.html", encoding="utf-8").read()
+    example = html.split('id="hire-text"', 1)[1].split('placeholder="', 1)[1].split('"', 1)[0]
+    v = h.validate(h.offline_draft(example), h.OrgPolicy(), "travel-bot", example)
+    assert v.ok, v.errors
+    assert v.mandate.allowed_mccs == {"4511", "7011"}  # airlines, hotels
+    assert (v.mandate.per_txn_cap, v.mandate.weekly_cap, v.mandate.approval_threshold) == \
+        (Decimal("400.00"), Decimal("1500.00"), Decimal("300.00"))

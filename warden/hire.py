@@ -28,6 +28,13 @@ KNOWN_CATEGORIES: dict[str, tuple[str, ...]] = {
     "office furniture": (w.MCC_OFFICE_FURNITURE,),
     "software": (w.MCC_SOFTWARE,),
     "data services": (w.MCC_DATA_SERVICES,),
+    # Travel. Card networks file most airlines under their own codes (3000-3350); 4511 is the
+    # generic airline code, so a card locked to it may need specific carriers added later.
+    "flights": ("4511",),
+    "hotels": ("7011",),
+    "travel agencies": ("4722",),
+    "taxis": ("4121",),
+    "restaurants": ("5812",),
 }
 # Known, but no agent may ever be allowed to buy them.
 FORBIDDEN_CATEGORIES: dict[str, tuple[str, ...]] = {"gift cards": (w.MCC_GIFT_SHOP,)}

@@ -566,3 +566,6 @@ table.grid td.mono, table.grid .chain { color: var(--ink-2); }
 .head-right { flex-direction: row; align-items: center; gap: 12px; }
 .head-right .story-link { padding: 0; }
 @media (max-width: 1200px) { .head-right { flex-wrap: wrap; } }
+
+.refused { margin: 6px 0 4px; padding: 10px 12px; border-radius: 10px; background: var(--bad-wash); color: var(--ink-2); font-size: 13.5px; }
+.refused b { color: var(--bad); }

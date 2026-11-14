@@ -215,9 +215,13 @@ function draftView(d) {
           <p class="muted small">MCC ${esc(m.allowed_mccs.join(", ") || "none")} · ${m.payee_allowlist.length} payees · ${esc(m.currencies.join(", "))}</p></div>
       </div>
       <ul class="changes">${changes}${errors}</ul>
-      <button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}" ${d.errors.length ? "disabled" : ""}>
-        Confirm and provision ${state.mode === "live" ? "a real card and Alta mandate" : "(simulated)"}
-      </button>
+      ${d.errors.length
+        ? `<p class="refused"><b>Not provisioned.</b> Code refused this mandate: ${esc(d.errors.join(" "))}
+             Warden only issues a card it can actually lock down. Rephrase the job and draft again.</p>
+           <button class="btn btn-wide" disabled>Can't provision this mandate</button>`
+        : `<button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}">
+             Confirm and provision ${state.mode === "live" ? "a real card and Alta mandate" : "(simulated)"}
+           </button>`}
     </div>`;
 }
 
