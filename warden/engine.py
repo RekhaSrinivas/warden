@@ -40,6 +40,7 @@ from typing import Any, Callable, Mapping
 
 from warden import approvals
 from warden.audit import AuditLog
+from warden.authorize import IntentBook
 from warden.decide import AGENT_CONTAINED, DUPLICATE, decide
 from warden.mandate import Mandate, SpendState, check, mandate_hash
 from warden.models import Action, Decision, Proposal, RiskReport
@@ -77,6 +78,8 @@ class Warden:
         # Called with (proposal, decision) once a payment is allowed and before the rail runs it, so a narrator
         # can show the decision before a rail that waits on a human (Airi's passkey) asks for anything.
         self.on_allow: Callable[[Proposal, Decision], None] | None = None
+        # Card payments Warden approved, for the card network's real-time authorization call (warden.authorize).
+        self.intents = IntentBook(clock=clock)
 
     def mandate_for(self, agent_id: str) -> Mandate:
         return self.mandates.get(agent_id, self.mandate)
@@ -230,12 +233,16 @@ class Warden:
             return {"status": "NO_RAIL", "error": f"No rail configured for {p.rail}"}
         if self.on_allow is not None and decision is not None:
             self.on_allow(p, decision)
+        if p.rail == "card":  # the card network may ask Warden about this charge while it runs
+            self.intents.expect(p)
         try:
             result = rail.execute(p)
         except RailDeclined as e:
+            self.intents.withdraw(p.id)
             # Warden allowed it but the rail's own lock refused: that lock is the backstop.
             return {"rail": rail.name, "status": "DECLINED_BY_RAIL", "reason": e.reason, **e.detail}
         except RailError as e:
+            self.intents.withdraw(p.id)
             return {"rail": rail.name, "status": "RAIL_ERROR", "error": str(e)}
         self.state.record(p.agent_id, p.amount, now)
         self.trust.reward(p.agent_id)

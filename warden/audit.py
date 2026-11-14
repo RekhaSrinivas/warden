@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -29,11 +30,17 @@ class AuditLog:
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = path
+        self._append_lock = threading.Lock()
         self._entries: list[dict[str, Any]] = []
         if path is not None and path.exists():
             self._entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
     def append(self, event: str, **data: Any) -> dict[str, Any]:
+        # Locked: the card network's real-time authorization call writes here while the engine may be mid-payment.
+        with self._append_lock:
+            return self._append(event, data)
+
+    def _append(self, event: str, data: dict[str, Any]) -> dict[str, Any]:
         prev = self._entries[-1]["hash"] if self._entries else GENESIS
         entry = json.loads(_canonical({
             "seq": len(self._entries),

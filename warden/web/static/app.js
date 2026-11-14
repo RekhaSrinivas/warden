@@ -342,6 +342,20 @@ function inboxItem(item) {
     </div>`;
 }
 
+function renderAuthorizations() {
+  const items = state.authorizations || [];
+  $("auth-count").textContent = items.length;
+  $("authorizations").innerHTML = items.length
+    ? items.map((a) => `
+      <div class="auth ${a.response_status === "AUTHORIZED" ? "ok" : "bad"}">
+        <div class="flag-top"><b>${a.response_status === "AUTHORIZED" ? "Authorized" : "Declined"}</b>
+          <span class="time">${esc(a.decided_in_ms)} ms · ${clock(a.ts)}</span></div>
+        <p>${esc(money(a.amount, a.currency))} at ${esc(a.merchant_name || "?")} on ${esc(a.agent_id || "an unknown card")}</p>
+        <div class="muted small">${esc(a.reason)}</div>
+      </div>`).join("")
+    : `<p class="muted small">No card charges yet.</p>`;
+}
+
 function renderFlags() {
   const flags = state.flags || [];
   $("flag-count").textContent = flags.length;
@@ -560,6 +574,7 @@ function render() {
   renderFeed();
   renderInbox();
   renderFlags();
+  renderAuthorizations();
   renderReceipts();
   renderCases();
   renderLocks();

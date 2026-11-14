@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import random
 import tempfile
 import time
@@ -28,6 +29,7 @@ from warden import approvals, demo_world as w, gauntlet
 from warden import hire as h
 from warden import receipts as rc
 from warden.audit import AuditLog
+from warden.authorize import RemoteAuthorizer
 from warden.engine import ApprovalError, Warden
 from warden.gateway import Gateway, TokenStore
 from warden.mcp_server import TOKENS_PATH, build_server
@@ -244,6 +246,16 @@ class Dashboard:
     def mode(self) -> str:
         return self.services.mode
 
+    def card_agents(self) -> dict[str, str]:
+        """Card id -> agent id, for each agent's current card (its latest hire)."""
+        latest: dict[str, str] = {}
+        for entry in self.warden.audit.entries():
+            if entry["event"] == "agent_hired":
+                card = (entry["data"].get("provisioning") or {}).get("card_id")
+                if card:
+                    latest[entry["data"]["agent_id"]] = card
+        return {card: agent for agent, card in latest.items()}
+
     def agents(self) -> list[dict[str, Any]]:
         hired: dict[str, dict[str, Any]] = {}
         for entry in self.warden.audit.entries():
@@ -363,6 +375,10 @@ class Dashboard:
             "cases": {"pipeline": CASE_PIPELINE, "items": self.services.cases()},
             "locks": self.services.locks(self.warden),
             "passkey": self.services.passkey(self.warden),
+            "authorizations": [{k: e["data"].get(k) for k in ("agent_id", "amount", "currency", "merchant_name",
+                                                               "merchant_category", "response_status", "reason",
+                                                               "decided_in_ms", "proposal_id")} | {"ts": e["ts"]}
+                               for e in entries if e["event"] == "remote_authorization"][-20:][::-1],
             "flags": [{"agent_id": e["data"].get("agent_id"), "summary": e["data"].get("summary"),
                        "source": e["data"].get("source"), "ts": e["ts"]}
                       for e in entries if e["event"] == "agent_flag"][-20:][::-1],
@@ -431,6 +447,10 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
     app.router.routes.extend(mcp_app.routes)
     app.state.tokens = tokens
     app.state.gateway = gateway
+    # Live: only requests signed with the secret Airwallex issued are answered. Offline: unsigned, for demos and tests.
+    secret = os.environ.get("AIRWALLEX_REMOTE_AUTH_SECRET", "").strip() or None
+    app.state.authorizer = RemoteAuthorizer(lambda: app.state.board.warden, lambda: app.state.board.card_agents(),
+                                            secret=secret if services.mode == "live" else None)
     app.state.board = Dashboard(warden, services)
     app.state.factory = factory
     app.state.drafts = {}
@@ -481,6 +501,14 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         except h.HireError as e:
             raise HTTPException(422, str(e)) from None
         return _jsonable({"agent_id": body.agent_id, "provisioning": hired.get("provisioning")})
+
+    @app.post("/airwallex/remote-auth")
+    async def remote_auth(request: Request) -> JSONResponse:
+        """Airwallex Issuing asks: approve this card charge? Answered from memory, well inside 2.5 seconds."""
+        if board().mode == "live" and app.state.authorizer.secret is None:
+            return JSONResponse(status_code=503, content={"error": "remote auth secret not configured"})
+        status, answer = app.state.authorizer.handle(dict(request.headers), await request.body())
+        return JSONResponse(status_code=status, content=answer)
 
     @app.post("/api/mcp/token")
     def mcp_token(body: TokenBody, request: Request) -> dict[str, Any]:
