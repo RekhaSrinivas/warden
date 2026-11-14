@@ -506,12 +506,21 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         if agent_id not in board().warden.mandates:
             raise HTTPException(404, f"No agent called {agent_id}")
 
-    @app.get("/", response_class=HTMLResponse)
-    def index() -> str:
-        html = (HERE / "templates" / "index.html").read_text(encoding="utf-8")
+    def page(template: str) -> str:
+        html = (HERE / "templates" / template).read_text(encoding="utf-8")
         initial = json.dumps(board().state()).replace("</", "<\\/")
         return html.replace("{{MODE}}", board().mode).replace("{{TAGLINE}}", TAGLINE) \
                    .replace("{{INITIAL_STATE}}", initial)
+
+    @app.get("/", response_class=HTMLResponse)
+    def story() -> str:
+        """The scroll story: the live run, told scene by scene."""
+        return page("story.html")
+
+    @app.get("/console", response_class=HTMLResponse)
+    def index() -> str:
+        """The live console: hire, guard, prove, recover, locks."""
+        return page("index.html")
 
     @app.get("/api/state")
     def state() -> dict[str, Any]:

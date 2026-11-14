@@ -16,7 +16,10 @@ def make_client(tmp_path):
 
 def test_page_renders_the_story_with_initial_state(tmp_path):
     client, _ = make_client(tmp_path)
-    res = client.get("/")
+    story = client.get("/")
+    assert story.status_code == 200 and 'href="/console"' in story.text and "{{" not in story.text
+    assert client.get("/static/story.js").status_code == 200
+    res = client.get("/console")
     assert res.status_code == 200
     assert "It makes that trust enforceable, revocable, and verifiable." in res.text
     for act in ("Hire it", "Guard it", "Prove it", "Recover", "Independent locks"):
