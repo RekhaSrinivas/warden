@@ -306,7 +306,32 @@ def sync_entries(entries: list[dict[str, Any]], receipts_path: Path, key: Ed2551
     return new
 
 
-def main() -> int:
+def verify_files(receipts_path: Path, public_key_path: Path) -> int:
+    """Check a published receipt book with nothing but its public key: every signature and every link."""
+    receipts = load(receipts_path)
+    if not receipts:
+        print(f"No receipts in {receipts_path}")
+        return 1
+    broken = verify_chain(receipts, load_public_key(public_key_path))
+    for r in receipts:
+        b = r.body
+        print(f"  {b['receipt_id']}  {b['decision']['action']:<8} {b.get('amount') or '':>8} {b.get('currency') or '':<4}"
+              f" {b['payee']['name'] or '':<34} {b['settlement_status']}")
+    print(f"{len(receipts)} receipts. Signatures and hash chain:",
+          "intact" if broken is None else f"BROKEN at receipt {broken}")
+    return 0 if broken is None else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    import sys
+
+    args = sys.argv[1:] if argv is None else argv
+    if args[:1] == ["verify"]:
+        if len(args) != 3:
+            print("usage: python -m warden.receipts verify <receipts.jsonl> <receipt-public-key.pem>")
+            return 2
+        return verify_files(Path(args[1]), Path(args[2]))
+
     from warden.config import load_settings
 
     settings = load_settings()

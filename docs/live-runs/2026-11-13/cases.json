@@ -1,0 +1,187 @@
+[
+ {
+  "case_id": "case_cb747d4ffec2",
+  "card_transaction_id": "01a1d235-876e-7000-bab4-0cac2279cdc9",
+  "agent_id": "probe-agent",
+  "card_id": "50e31ed6-4d34-4102-b250-10a75755c3b3",
+  "amount": "40",
+  "currency": "USD",
+  "merchant_name": "AIRPRO_TX_GENERATOR",
+  "merchant_category": "5943",
+  "transacted_at": "2026-11-13T00:01:26.459+0000",
+  "lifecycle_id": "01a1d235-876e-7000-9bb3-24fc7a68b870",
+  "clearing_event_id": "01a1d236-f41e-7000-a837-c55365fa011a",
+  "cleared": true,
+  "state": "DISPUTE_SUBMITTED",
+  "summary": "On 2026-11-13 at 00:01:26 UTC, the active agent probe-agent's company card was charged 40 USD by merchant AIRPRO_TX_GENERATOR (category code 5943), and the charge has cleared. No Intent Receipt and no human approval exist for this transaction, so no human authorisation was recorded; this is evidence of possible fraud or unauthorised use but does not prove it. It is not known who or what initiated the charge, what was purchased, or why.",
+  "reason": "Dispute 1379fdeb-99a6-43eb-88e4-f1dd7134a69f submitted with evidence; Airwallex status SUBMITTED.",
+  "dispute_id": "1379fdeb-99a6-43eb-88e4-f1dd7134a69f",
+  "dispute_status": "SUBMITTED",
+  "evidence_file_id": "YjUxZWU0NzgtYjA2NC00OTY0LWEzZDUtMDFhNjBkZTgyZmQ1LHwsc2csfCxjYXNlX2NiNzQ3ZDRmZmVjMi5wZGZfMTc5NDUzMDk5OTM5MA",
+  "history": [
+   {
+    "at": "2026-11-13T00:30:55Z",
+    "state": "UNATTRIBUTED",
+    "note": "Card debit with no Intent Receipt."
+   },
+   {
+    "at": "2026-11-13T00:31:00Z",
+    "state": "INVESTIGATING",
+    "note": "Checking for a receipt, an approval and dispute eligibility."
+   },
+   {
+    "at": "2026-11-13T00:50:00Z",
+    "state": "DISPUTE_SUBMITTED",
+    "note": "Dispute 1379fdeb-99a6-43eb-88e4-f1dd7134a69f submitted with evidence; Airwallex status SUBMITTED."
+   }
+  ]
+ },
+ {
+  "case_id": "case_fbf34066104b",
+  "card_transaction_id": "01a1d260-0c34-7000-847e-de372b4b7b2c",
+  "agent_id": "procurement-bot",
+  "card_id": "b75371f5-9cc1-4c4c-b830-9a4cc739a307",
+  "amount": "180",
+  "currency": "USD",
+  "merchant_name": "AIRPRO_TX_GENERATOR",
+  "merchant_category": "5943",
+  "transacted_at": "2026-11-13T00:47:53.001+0000",
+  "lifecycle_id": "01a1d260-0c34-7000-9118-1cf8db1c992d",
+  "clearing_event_id": "01a1d260-bb64-7000-afa9-fa8ecce585c3",
+  "cleared": true,
+  "state": "DISPUTE_SUBMITTED",
+  "summary": "On 2026-11-13 at 00:47:53 UTC, the AI agent procurement-bot initiated a 180 USD charge on its company card at merchant AIRPRO_TX_GENERATOR (merchant category 5943). The charge has not cleared, and no Intent Receipt or human approval was recorded, meaning no human authorisation exists for it; this is evidence of possible fraud but does not prove it. The agent has been contained. The purpose of the charge, who or what directed it, and whether the merchant is legitimate remain unknown.",
+  "reason": "Dispute f57618d5-83b3-491b-9093-b6cd104475ee submitted with evidence; Airwallex status SUBMITTED.",
+  "dispute_id": "f57618d5-83b3-491b-9093-b6cd104475ee",
+  "dispute_status": "SUBMITTED",
+  "evidence_file_id": "YjUxZWU0NzgtYjA2NC00OTY0LWEzZDUtMDFhNjBkZTgyZmQ1LHwsc2csfCxjYXNlX2ZiZjM0MDY2MTA0Yi5wZGZfMTc5NDUzMDkyMTc4Ng",
+  "history": [
+   {
+    "at": "2026-11-13T00:48:29Z",
+    "state": "UNATTRIBUTED",
+    "note": "Card debit with no Intent Receipt."
+   },
+   {
+    "at": "2026-11-13T00:48:35Z",
+    "state": "INVESTIGATING",
+    "note": "Checking for a receipt, an approval and dispute eligibility."
+   },
+   {
+    "at": "2026-11-13T00:48:44Z",
+    "state": "DISPUTE_SUBMITTED",
+    "note": "Dispute f57618d5-83b3-491b-9093-b6cd104475ee submitted with evidence; Airwallex status SUBMITTED."
+   }
+  ]
+ },
+ {
+  "case_id": "case_08f0942e29a3",
+  "card_transaction_id": "01a1d251-0f28-7000-b7b7-42ee965400e8",
+  "agent_id": "probe-agent",
+  "card_id": "50e31ed6-4d34-4102-b250-10a75755c3b3",
+  "amount": "40",
+  "currency": "USD",
+  "merchant_name": "AIRPRO_TX_GENERATOR",
+  "merchant_category": "5943",
+  "transacted_at": "2026-11-13T00:31:33.569+0000",
+  "lifecycle_id": "01a1d235-876e-7000-9bb3-24fc7a68b870",
+  "clearing_event_id": "01a1d251-0f28-7000-a7a9-8f225ae3ee5b",
+  "cleared": true,
+  "state": "DISPUTE_SUBMITTED",
+  "summary": "On 2026-11-13 at 00:31:33 UTC, a 40 USD charge from merchant AIRPRO_TX_GENERATOR (merchant category 5943) cleared on the company card assigned to probe-agent, which remains active. No Intent Receipt and no human approval were recorded for this charge, meaning there is no record of human authorisation; this is evidence of possible unauthorised or fraudulent activity but does not prove fraud. The purpose of the charge, what was purchased, and whether the agent initiated it legitimately are not known from the available data.",
+  "reason": "Dispute 8c2d5192-789b-4136-b488-ec943d9aacc0 submitted with evidence; Airwallex status SUBMITTED.",
+  "dispute_id": "8c2d5192-789b-4136-b488-ec943d9aacc0",
+  "dispute_status": "SUBMITTED",
+  "evidence_file_id": "YjUxZWU0NzgtYjA2NC00OTY0LWEzZDUtMDFhNjBkZTgyZmQ1LHwsc2csfCxjYXNlXzA4ZjA5NDJlMjlhMy5wZGZfMTc5NDUzMTAwNTk1OA",
+  "history": [
+   {
+    "at": "2026-11-13T00:49:56Z",
+    "state": "UNATTRIBUTED",
+    "note": "Card debit with no Intent Receipt."
+   },
+   {
+    "at": "2026-11-13T00:50:05Z",
+    "state": "INVESTIGATING",
+    "note": "Checking for a receipt, an approval and dispute eligibility."
+   },
+   {
+    "at": "2026-11-13T00:50:08Z",
+    "state": "DISPUTE_SUBMITTED",
+    "note": "Dispute 8c2d5192-789b-4136-b488-ec943d9aacc0 submitted with evidence; Airwallex status SUBMITTED."
+   }
+  ]
+ },
+ {
+  "case_id": "case_d2d3950515bc",
+  "card_transaction_id": "01a1d63b-a1ca-7000-9cf4-371c0d3d4d38",
+  "agent_id": "procurement-bot",
+  "card_id": "417c85ab-dfd9-4ef4-9ec5-a52a6206a7c9",
+  "amount": "180",
+  "currency": "USD",
+  "merchant_name": "AIRPRO_TX_GENERATOR",
+  "merchant_category": "5943",
+  "transacted_at": "2026-11-13T18:46:35.242+0000",
+  "lifecycle_id": "01a1d63b-a1ca-7000-bc60-75e2ead3d17d",
+  "clearing_event_id": "01a1d63c-9174-7000-a645-6c65532c52f6",
+  "cleared": true,
+  "state": "DISPUTE_SUBMITTED",
+  "summary": "On 2026-11-13 at 18:46:35 UTC, the procurement-bot agent's company card was charged 180 USD at merchant AIRPRO_TX_GENERATOR (merchant category 5943), and the charge has cleared. No Intent Receipt and no human approval exist for this transaction, so no human authorisation was recorded; this is evidence of possible fraud or misuse but does not prove it. The agent is now contained, and the purpose of the purchase and whether it was legitimate are not yet known.",
+  "reason": "Dispute 8e1fa12c-0a2b-4188-8c09-262ed5e3e865 submitted with evidence; Airwallex status SUBMITTED.",
+  "dispute_id": "8e1fa12c-0a2b-4188-8c09-262ed5e3e865",
+  "dispute_status": "SUBMITTED",
+  "evidence_file_id": "YjUxZWU0NzgtYjA2NC00OTY0LWEzZDUtMDFhNjBkZTgyZmQ1LHwsc2csfCxjYXNlX2QyZDM5NTA1MTViYy5wZGZfMTc5NDU5NTY2MjQwNA",
+  "history": [
+   {
+    "at": "2026-11-13T18:47:33Z",
+    "state": "UNATTRIBUTED",
+    "note": "Card debit with no Intent Receipt."
+   },
+   {
+    "at": "2026-11-13T18:47:41Z",
+    "state": "INVESTIGATING",
+    "note": "Checking for a receipt, an approval and dispute eligibility."
+   },
+   {
+    "at": "2026-11-13T18:47:43Z",
+    "state": "DISPUTE_SUBMITTED",
+    "note": "Dispute 8e1fa12c-0a2b-4188-8c09-262ed5e3e865 submitted with evidence; Airwallex status SUBMITTED."
+   }
+  ]
+ },
+ {
+  "case_id": "case_f221fd58618c",
+  "card_transaction_id": "01a1d7da-6699-7000-86b6-4fbedc9fcfd1",
+  "agent_id": "procurement-bot",
+  "card_id": "57746891-9833-4b3a-8a73-24e31b6a8c85",
+  "amount": "180",
+  "currency": "USD",
+  "merchant_name": "AIRPRO_TX_GENERATOR",
+  "merchant_category": "5943",
+  "transacted_at": "2026-11-14T02:19:37.608+0000",
+  "lifecycle_id": "01a1d7da-6699-7000-a1b9-6ee34177294f",
+  "clearing_event_id": "01a1d7db-3d22-7000-9b80-2a697fcf56fd",
+  "cleared": true,
+  "state": "DISPUTE_SUBMITTED",
+  "summary": "On 2026-11-14 at 02:19:37 UTC, a 180 USD charge from merchant AIRPRO_TX_GENERATOR (merchant category 5943) cleared on the company card used by the AI agent procurement-bot. No Intent Receipt and no human approval are recorded for the charge, so there is no record that a human authorised it; this is evidence of possible fraud or misuse but does not prove it. The agent has been contained, and the purpose of the charge, whether the agent initiated it, and whether it was legitimate are not yet known.",
+  "reason": "Dispute b0fe9ca6-9476-458c-b45d-bf4135f855d0 submitted with evidence; Airwallex status SUBMITTED.",
+  "dispute_id": "b0fe9ca6-9476-458c-b45d-bf4135f855d0",
+  "dispute_status": "SUBMITTED",
+  "evidence_file_id": "YjUxZWU0NzgtYjA2NC00OTY0LWEzZDUtMDFhNjBkZTgyZmQ1LHwsc2csfCxjYXNlX2YyMjFmZDU4NjE4Yy5wZGZfMTc5NDYyMjgzODk4NQ",
+  "history": [
+   {
+    "at": "2026-11-14T02:20:28Z",
+    "state": "UNATTRIBUTED",
+    "note": "Card debit with no Intent Receipt."
+   },
+   {
+    "at": "2026-11-14T02:20:37Z",
+    "state": "INVESTIGATING",
+    "note": "Checking for a receipt, an approval and dispute eligibility."
+   },
+   {
+    "at": "2026-11-14T02:20:39Z",
+    "state": "DISPUTE_SUBMITTED",
+    "note": "Dispute b0fe9ca6-9476-458c-b45d-bf4135f855d0 submitted with evidence; Airwallex status SUBMITTED."
+   }
+  ]
+ }
+]

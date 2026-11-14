@@ -174,3 +174,17 @@ def test_verify_page_routes(tmp_path, key):
     bad = client.post("/verify/paste", json={**receipts[0].to_json(), "amount": "1"}).json()["checks"]
     assert all(c["ok"] for c in ok) and not any(c["ok"] for c in bad)
     assert client.post("/verify/paste", content=b"[1]", headers={"Content-Type": "application/json"}).status_code == 400
+
+
+def test_the_published_live_run_verifies_and_a_tampered_copy_does_not(tmp_path):
+    from pathlib import Path
+
+    from warden.receipts import verify_files
+
+    run = Path("docs/live-runs/2026-11-13")
+    assert verify_files(run / "receipts.jsonl", run / "receipt-public-key.pem") == 0
+    lines = (run / "receipts.jsonl").read_text(encoding="utf-8").splitlines()
+    lines[3] = lines[3].replace('"420"', '"4200"', 1) if '"420"' in lines[3] else lines[3].replace('"amount":', '"amount_x":', 1)
+    forged = tmp_path / "receipts.jsonl"
+    forged.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert verify_files(forged, run / "receipt-public-key.pem") == 1
