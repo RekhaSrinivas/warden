@@ -108,7 +108,7 @@ python -m warden.redteam --score-only --offline  # replay the 46-attack red team
 
 | | |
 |---|---|
-| **100,000** simulated agent actions | 26,427 hostile, **0 paid without a human**, 0 rules broken ([`warden/simulate.py`](warden/simulate.py)). With the mandate check sabotaged, it catches 491 violations, so the test can fail. |
+| **100,000** simulated agent actions | 26,427 hostile, **0 paid without a human**, 0 rules broken ([`warden/simulate.py`](warden/simulate.py)). With the mandate check sabotaged, 7,140 hostile requests get paid and the checker reports 10,726 broken rules, so the test can fail. |
 | **46** red-team attacks | 40 written by Claude playing the attacker across 20 techniques, 6 written by hand. **0 paid without a human**, 5 held, 41 blocked, and **30/30 legitimate payments still paid** ([`docs/redteam/`](docs/redteam/README.md)). The hand-written attacks found two real gaps, which are now fixed. |
 | **4/4** independent locks | Held live with Warden switched off. |
 | **0 of 4** | Payments a stolen agent token achieved through the MCP gateway. |

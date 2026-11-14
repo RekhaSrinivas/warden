@@ -29,6 +29,7 @@ from warden import approvals, demo_world as w, gauntlet
 from warden import hire as h
 from warden import receipts as rc
 from warden.audit import AuditLog
+from warden.config import ROOT
 from warden.authorize import RemoteAuthorizer
 from warden.engine import ApprovalError, Warden
 from warden.gateway import Gateway, TokenStore
@@ -624,6 +625,14 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         if view["mode"] != "live" and not view["feed"]:
             view = published_live_view() or view
         return page("story.html", view)
+
+    @app.get("/lab", response_class=HTMLResponse)
+    def lab() -> str:
+        """Which defence stops which attack: docs/lab/results.json, made by `python -m warden.lab`."""
+        results = ROOT / "docs" / "lab" / "results.json"
+        data = results.read_text(encoding="utf-8") if results.exists() else "null"
+        html = (HERE / "templates" / "lab.html").read_text(encoding="utf-8")
+        return html.replace("{{V}}", ASSET_VERSION).replace("{{LAB}}", data.replace("</", "<" + "\\" + "/"))
 
     @app.get("/console", response_class=HTMLResponse)
     def index() -> str:

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Warden Lab</title>
+  <meta name="description" content="Which defence stops which attack: the same attacks and honest payments, scored against five designs.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%232bd4a4' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z'/%3E%3C/svg%3E">
+  <script src="/static/theme.js?v={{V}}"></script>
+  <link rel="stylesheet" href="/static/theme-toggle.css?v={{V}}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="/static/lab.css?v={{V}}">
+</head>
+<body>
+  <nav class="nav">
+    <a class="logo" href="/"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path class="tick" d="m8.5 12 2.5 2.5 4.5-5"/></svg>Warden <span class="logo-sub">Lab</span></a>
+    <div class="nav-links">
+      <a href="#matrix">Matrix</a>
+      <a href="#measured">Measured</a>
+      <a href="#limits">Not claimed</a>
+      <a href="/verify">Verify</a>
+      <nav class="view-switch" aria-label="Story or console">
+        <a href="/">Story</a><a href="/console">Console</a>
+      </nav>
+      <button class="theme-toggle" type="button" aria-label="Switch theme">
+        <span class="tt-opt tt-dark"><svg viewBox="0 0 24 24"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg></span>
+        <span class="tt-opt tt-light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg></span>
+      </button>
+    </div>
+  </nav>
+
+  <main>
+    <header class="intro">
+      <p class="eyebrow">The lab</p>
+      <h1>Which defence stops <em>which</em> attack.</h1>
+      <p class="lede">The same attacks and the same honest payments, scored against five designs, from an agent that pays
+        whatever it's told, through each rail's own controls, up to Warden with Claude reading the evidence. Every
+        scenario runs on a fresh Warden with simulated rails. Nothing here is hand-scored.</p>
+      <div class="set-switch" role="tablist" aria-label="Attack set">
+        <button role="tab" data-set="redteam" aria-selected="true">Red team <span>46 attacks · 30 honest</span></button>
+        <button role="tab" data-set="scripted" aria-selected="false">Scripted <span>10 attacks · 5 honest</span></button>
+      </div>
+      <p class="set-note" id="set-note"></p>
+    </header>
+
+    <section class="ladder" id="ladder" aria-label="Attacks paid without a human, by design"></section>
+
+    <section class="matrix-wrap" id="matrix">
+      <div class="section-head">
+        <h2>Every attack, every design</h2>
+        <div class="legend">
+          <span><i class="c paid"></i>Paid: the attack worked</span>
+          <span><i class="c held"></i>Held for a human</span>
+          <span><i class="c blocked"></i>Blocked</span>
+        </div>
+      </div>
+      <div class="filters" id="filters"></div>
+      <div class="matrix" id="matrix-grid" role="table"></div>
+      <aside class="detail" id="detail" hidden></aside>
+    </section>
+
+    <section class="designs" id="designs"></section>
+
+    <section class="measured" id="measured">
+      <h2>Measured elsewhere</h2>
+      <div class="cards" id="measured-cards"></div>
+    </section>
+
+    <section class="limits" id="limits">
+      <h2>What we do not claim</h2>
+      <ul>
+        <li><b>The attackers are ours.</b> Forty attacks were written by Claude playing the attacker and six by hand. An
+          independent red team would find others.</li>
+        <li><b>Rails are sandbox and testnet.</b> Airwallex sandbox money, Alta testnet USDZ, a Visa test card behind Airi.
+          The Visa credential was presented to a stand-in merchant checkout.</li>
+        <li><b>B1 is modelled, not run.</b> "Rail controls only" applies each rail's documented controls (card merchant
+          categories and limit, Airi passkey, Alta mandate payees and cap), set to the agent's own mandate. The four
+          locks were also tested live with Warden switched off.</li>
+        <li><b>A fooled agent is assumed.</b> Every attack request is sent exactly as the attacker wanted. Real agents
+          often refuse; we don't count on it.</li>
+        <li><b>No formal proof, no independent review.</b> The rules are checked after every action in simulation, not
+          proved.</li>
+        <li><b>Recovery is not yet proven.</b> The live dispute is still SUBMITTED, so "recovered" stays $0 until
+          Airwallex reports it won.</li>
+      </ul>
+    </section>
+
+    <section class="repro">
+      <h2>Reproduce it</h2>
+      <pre><code>python -m warden.lab --offline        # B0 to B3, no keys needed
+python -m warden.lab                  # adds B4 (Claude reads the evidence)
+python -m warden.simulate             # 100,000 random actions, rules checked after each
+python -m warden.simulate --sabotage  # mandate check switched off: the rules must catch it
+python -m warden.receipts verify docs/live-runs/2026-11-13/receipts.jsonl docs/live-runs/2026-11-13/receipt-public-key.pem</code></pre>
+      <p class="muted" id="scored-at"></p>
+    </section>
+  </main>
+
+  <script id="lab-data" type="application/json">{{LAB}}</script>
+  <script src="/static/lab.js?v={{V}}"></script>
+</body>
+</html>
