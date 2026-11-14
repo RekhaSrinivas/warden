@@ -103,6 +103,21 @@ function renderHeader() {
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
   $("btn-reset").hidden = state.mode === "live";
   $("btn-locks").hidden = state.mode === "live";
+  const m = state.protection;
+  if (m) {
+    const tile = (cls, label, v, note) => `<div class="tile ${cls}"><span class="label">${label}</span>
+      <span class="value">${esc(money(v.amount ?? v))}</span><span class="note">${note}</span></div>`;
+    $("protect").innerHTML = [
+      tile("hero", "Money protected", m.protected, "stopped + double payments + declined live + recovered"),
+      tile("bad", "Stopped", m.stopped, `${m.stopped.count} payments blocked or agent contained`),
+      tile("bad", "Double payments prevented", m.double_payments, `${m.double_payments.count} retries absorbed`),
+      tile("bad", "Declined in real time", m.declined_live, `${m.declined_live.count} card charges without a receipt`),
+      tile("warn", "Held for a human", m.held, `${m.held.count} waiting in the inbox`),
+      tile("warn", "Under dispute", m.under_dispute, `${m.under_dispute.count} charges no human authorised`),
+      tile("ok", "Recovered", m.recovered, "counted only when Airwallex reports WON"),
+      tile("ok", "Paid within mandate", m.paid, `${m.paid.count} payments`),
+    ].join("");
+  }
   const pk = state.passkey;
   $("passkey-banner").hidden = !pk;
   $("passkey-banner").innerHTML = pk

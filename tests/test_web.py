@@ -1,3 +1,4 @@
+from decimal import Decimal
 """Dashboard API, offline: simulated rails, the heuristic risk reader, receipts signed with a throwaway key."""
 
 from fastapi.testclient import TestClient
@@ -127,3 +128,24 @@ def test_reset_only_offline(tmp_path):
     live_like = Services(**{**services.__dict__, "mode": "live"})
     client = TestClient(create_app(offline_warden(services.audit_path), live_like))
     assert client.post("/api/reset").status_code == 400
+
+
+def test_money_protected_counts_each_payment_once_by_its_final_outcome():
+    from fastapi.testclient import TestClient as Client
+
+    app = create_app()
+    client = Client(app)
+    warden = app.state.board.warden
+    client.post("/api/normal-day", json={"agent_id": w.PROCUREMENT})  # 420 + 260 + 85 paid
+    first = w.invoice("Acme Office Supply", "420", "INV-1001")
+    warden.submit(first)  # a fresh invoice object: paid
+    warden.submit(first)  # the same request again: a double payment prevented
+    warden.submit(w.fake_bank_change("1200"))  # stopped
+    client.post("/airwallex/remote-auth", json={"version": 2, "card_id": "copied", "card_transaction_event_id": "e1",
+                                                "transaction_amount": 180, "transaction_currency": "USD"})
+    m = client.get("/api/state").json()["protection"]
+    assert m["paid"] == {"amount": "1185", "count": 4}
+    assert m["double_payments"] == {"amount": "420", "count": 1}
+    assert m["stopped"] == {"amount": "1200", "count": 1}
+    assert Decimal(m["declined_live"]["amount"]) == 180 and m["declined_live"]["count"] == 1
+    assert Decimal(m["protected"]) == 1800

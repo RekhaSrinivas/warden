@@ -295,25 +295,27 @@ class Dashboard:
         return out
 
     def feed(self) -> list[dict[str, Any]]:
-        proposals: dict[str, dict[str, Any]] = {}
-        order: list[str] = []
-        history: dict[str, list[dict[str, Any]]] = {}
-        rejected: dict[str, list[str]] = {}
+        """One card per submission. A retry of the same proposal is its own card (blocked as a duplicate),
+        so the original keeps showing what really happened to it."""
+        items: list[dict[str, Any]] = []
+        latest: dict[str, int] = {}  # proposal id -> index of its most recent submission
         for entry in self.warden.audit.entries():
             event, data = entry["event"], entry["data"]
             if event == "proposal_received":
                 pid = data["proposal"]["id"]
-                proposals[pid] = data["proposal"]
-                order.append(pid)
-            elif event in DECISION_EVENTS:
-                history.setdefault(data["proposal_id"], []).append(
+                latest[pid] = len(items)
+                items.append({"proposal": data["proposal"], "history": [], "rejected_approvals": []})
+            elif event in DECISION_EVENTS and data.get("proposal_id") in latest:
+                items[latest[data["proposal_id"]]]["history"].append(
                     {**data, "event": event, "seq": entry["seq"], "ts": entry["ts"],
                      "hash": entry["hash"], "prev_hash": entry["prev_hash"]})
-            elif event == "approval_rejected":
-                rejected.setdefault(data["proposal_id"], []).append(data.get("reason", ""))
-        return [{"proposal": proposals[pid], "decision": (history.get(pid) or [None])[-1],
-                 "history": history.get(pid, []), "pending": pid in self.warden.pending,
-                 "rejected_approvals": rejected.get(pid, [])} for pid in reversed(order)]
+            elif event == "approval_rejected" and data.get("proposal_id") in latest:
+                items[latest[data["proposal_id"]]]["rejected_approvals"].append(data.get("reason", ""))
+        for i, item in enumerate(items):
+            pid = item["proposal"]["id"]
+            item["decision"] = (item["history"] or [None])[-1]
+            item["pending"] = pid in self.warden.pending and latest.get(pid) == i
+        return items[::-1]
 
     def inbox(self) -> list[dict[str, Any]]:
         items = []
@@ -361,18 +363,57 @@ class Dashboard:
         return {"count": len(book), "chain_intact": broken is None, "broken_at": broken,
                 "fingerprint": fingerprint, "recent": rows[-40:][::-1]}
 
+    def protection(self, feed: list[dict[str, Any]], cases: list[dict[str, Any]],
+                   entries: list[dict[str, Any]]) -> dict[str, Any]:
+        """Money Warden protected, counted once per payment from its final decision."""
+        total = {k: Decimal("0") for k in ("paid", "stopped", "double_payments", "held", "declined_live",
+                                          "under_dispute", "recovered", "lost")}
+        count = {k: 0 for k in total}
+
+        def add(key: str, amount: Any) -> None:
+            total[key] += Decimal(str(amount or "0"))
+            count[key] += 1
+
+        for item in feed:
+            p, d = item["proposal"], item["decision"]
+            if item["pending"]:
+                add("held", p["amount"])
+            elif d is None:
+                continue
+            elif d["action"] == "ALLOW":
+                if (d.get("execution") or {}).get("status") not in ("NO_RAIL", "DECLINED_BY_RAIL", "RAIL_ERROR"):
+                    add("paid", p["amount"])
+            elif "DUPLICATE_REQUEST" in (d.get("violations") or []):
+                add("double_payments", p["amount"])
+            else:
+                add("stopped", p["amount"])
+        for e in entries:
+            if e["event"] == "remote_authorization" and e["data"].get("response_status") == "DECLINED":
+                add("declined_live", e["data"].get("amount"))
+        for c in cases:
+            state = str(c.get("state"))
+            key = "recovered" if state == "RECOVERED" else "lost" if state == "LOST" else                 "under_dispute" if state in ("UNATTRIBUTED", "INVESTIGATING", "DISPUTE_SUBMITTED") else None
+            if key:
+                add(key, c.get("amount"))
+        protected = total["stopped"] + total["double_payments"] + total["declined_live"] + total["recovered"]
+        return {"currency": "USD", "protected": str(protected),
+                **{k: {"amount": str(v), "count": count[k]} for k, v in total.items()}}
+
     def state(self) -> dict[str, Any]:
         entries = self.warden.audit.entries()
         broken = self.warden.audit.verify()
+        feed = self.feed()
+        cases = self.services.cases()
         return _jsonable({
             "mode": self.mode,
             "tagline": TAGLINE,
             "agents": self.agents(),
             "rails": self.rails(),
-            "feed": self.feed(),
+            "feed": feed,
+            "protection": self.protection(feed, cases, entries),
             "inbox": self.inbox(),
             "receipts": self.receipts(),
-            "cases": {"pipeline": CASE_PIPELINE, "items": self.services.cases()},
+            "cases": {"pipeline": CASE_PIPELINE, "items": cases},
             "locks": self.services.locks(self.warden),
             "passkey": self.services.passkey(self.warden),
             "authorizations": [{k: e["data"].get(k) for k in ("agent_id", "amount", "currency", "merchant_name",
