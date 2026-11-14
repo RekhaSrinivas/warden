@@ -199,6 +199,15 @@ $("agents").addEventListener("click", async (event) => {
   refresh();
 });
 
+// What confirming issues: a card when the mandate allows card categories, an Alta mandate when it may pay
+// the on-chain data API (an Alta address on its payee list).
+function provisions(m) {
+  const parts = [];
+  if (m.allowed_mccs.length) parts.push("a real card");
+  if (m.payee_allowlist.some((p) => /^0x[0-9a-f]{40}$/i.test(p))) parts.push("an Alta mandate");
+  return parts.join(" and ") || "the mandate";
+}
+
 function draftView(d) {
   const m = d.mandate;
   const changes = d.changes.length
@@ -220,8 +229,9 @@ function draftView(d) {
         ? `<p class="refused"><b>Not provisioned.</b> Code refused this mandate: ${esc(d.errors.join(" "))}
              Warden only issues a card it can actually lock down. Rephrase the job and draft again.</p>
            <button class="btn btn-wide" disabled>Can't provision this mandate</button>`
-        : `<button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}" data-mandate="${esc(m.mandate_id)}">
-             Confirm and provision ${state.mode === "live" ? "a real card and Alta mandate" : "(simulated)"}
+        : `<button class="btn btn-approve btn-wide" id="btn-confirm" data-agent="${esc(d.agent_id)}" data-mandate="${esc(m.mandate_id)}"
+             data-what="${esc(provisions(m))}">
+             Confirm and provision ${state.mode === "live" ? esc(provisions(m)) : "(simulated)"}
            </button>`}
     </div>`;
 }
@@ -245,7 +255,7 @@ for (const id of ["hire-id", "hire-role", "hire-text"]) {
 $("hire-draft").addEventListener("click", async (event) => {
   const btn = event.target.closest("#btn-confirm");
   if (!btn) return;
-  if (state.mode === "live" && !confirm("Provision a real Airwallex sandbox card and bind an Alta mandate on testnet?")) return;
+  if (state.mode === "live" && !confirm(`Provision ${btn.dataset.what} for ${btn.dataset.agent} on the Airwallex sandbox / Alta testnet?`)) return;
   await busy(btn, "Provisioning…", async () => {
     const { ok, data } = await api("/api/hire/confirm", { agent_id: btn.dataset.agent, mandate_id: btn.dataset.mandate });
     $("hire-draft").innerHTML = ok ? `<p class="ok">Hired ${esc(data.agent_id)}.</p>` : `<p class="bad">${esc(data.detail)}</p>`;
