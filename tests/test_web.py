@@ -224,3 +224,14 @@ def test_a_public_link_is_look_only_except_airwallex_remote_auth(tmp_path):
     assert answer.status_code == 200 and answer.json()["response_status"] == "DECLINED"
     assert client.post("/api/normal-day", json={"agent_id": "procurement-bot"},
                        headers={"host": "127.0.0.1:8000"}).status_code == 200
+
+
+def test_copied_card_details_used_outside_warden_are_declined_in_real_time(tmp_path):
+    client, _ = make_client(tmp_path)
+    out = client.post("/api/card-outside-warden", json={"agent_id": "procurement-bot"}).json()
+    assert out["airwallex"] == "DECLINED" and out["failure_reason"] == "REMOTE_AUTH_DECLINED"
+    assert out["warden"]["response_status"] == "DECLINED" and "No Intent Receipt" in out["warden"]["reason"]
+    state = client.get("/api/state").json()
+    assert state["protection"]["declined_live"]["count"] == 1
+    assert state["authorizations"][0]["response_status"] == "DECLINED"
+    assert client.post("/api/card-outside-warden", json={"agent_id": "ghost-bot"}).status_code == 404

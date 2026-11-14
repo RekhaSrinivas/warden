@@ -208,8 +208,9 @@ The Visa checkout pauses until a human confirms the Airi passkey; the console sh
 ## Honest limits
 
 - **Real-time card authorization** needs Warden reachable over public HTTPS (a Cloudflare tunnel here), so it is
-  switched on only while Warden runs: `python -m warden.authorize enable --url https://<host>/airwallex/remote-auth`
-  and `disable`. When it is off, card charges are held to the mandate by the card's own controls. The approved
+  switched on only while Warden runs: `python scripts/remote_auth_session.py` opens the tunnel, points Airwallex at
+  it and switches it off again on Ctrl+C. In the console, **Use its card outside Warden** charges an agent's real
+  card directly (copied card details), within the card's own limits, to show Airwallex asking Warden and declining. When it is off, card charges are held to the mandate by the card's own controls. The approved
   charge above was answered by Warden's authorizer with that single approval loaded, not by a full agent run.
 - **A public link is look-only.** Requests that reach Warden through a tunnel can read every page, but every button
   answers 403; the only write a stranger can make is Airwallex's signed authorization call.

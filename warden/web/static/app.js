@@ -472,6 +472,22 @@ $("btn-attack").addEventListener("click", async (event) => {
   refresh();
 });
 
+$("btn-card-outside").addEventListener("click", async (event) => {
+  const agent = $("attack-agent").value;
+  if (state.mode === "live" && !confirm(`Charge ${agent}'s real sandbox card directly, skipping Warden (as if its card details were copied)?`)) return;
+  await busy(event.currentTarget, "Charging the card…", async () => {
+    const { ok, data } = await api("/api/card-outside-warden", { agent_id: agent });
+    if (!ok) { toast(`Not run: ${esc(data.detail)}`); return; }
+    const head = `<b>Copied card used outside Warden: ${money(data.amount)}</b><br>`;
+    if (data.warden) {
+      toast(`${head}Airwallex asked Warden first. Warden: <b>${esc(data.warden.response_status)}</b> in ${esc(data.warden.decided_in_ms)} ms (${esc(data.warden.reason)})<br>Airwallex: ${esc(data.airwallex)}${data.failure_reason ? ` · ${esc(data.failure_reason)}` : ""}`, 9000);
+    } else {
+      toast(`${head}Airwallex: ${esc(data.airwallex)}${data.failure_reason ? ` · ${esc(data.failure_reason)}` : ""}. Remote authorization is off, so only the card's own limits applied; reconciliation will find this charge and open a dispute.`, 9000);
+    }
+  });
+  refresh();
+});
+
 $("btn-normal").addEventListener("click", async (event) => {
   const agent = $("attack-agent").value;
   if (state.mode === "live" && !confirm(`Run ${agent}'s normal day with real sandbox payments?`)) return;

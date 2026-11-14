@@ -127,6 +127,8 @@ class Services:
     locks: Callable[[Warden], dict[str, Any]]
     test_locks: Callable[[Warden], dict[str, Any]] | None = None
     passkey: Callable[[Warden], dict[str, Any] | None] = lambda warden: None  # an Airi checkout waiting on the human
+    # Charge a card straight at the network, skipping Warden (copied card details). Live only; None offline.
+    charge_card_directly: Callable[[str, Decimal, str], dict[str, Any]] | None = None
     audit_path: Path | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -234,6 +236,16 @@ def live_services(lw: Any) -> Services:
                    for p in evidence.get("independent_locks", [])]
         return {"results": results, "source": f"live demo run {evidence.get('ran_at', '')}".strip()}
 
+    def charge_card_directly(card_id: str, amount: Decimal, mcc: str) -> dict[str, Any]:
+        from warden.rails.airwallex import AirwallexError
+
+        try:
+            data = lw.airwallex.simulation.card_authorization(card_id, amount, "USD", mcc)
+        except AirwallexError as e:
+            return {"result": "ERROR", "failure_reason": e.summary()}
+        return {"result": data.get("process_result") or data.get("status"), "failure_reason": data.get("failure_reason"),
+                "card_transaction_event_id": data.get("card_transaction_event_id")}
+
     return Services(
         mode="live", receipts_path=rc.RECEIPTS_PATH, public_key_path=rc.PUBLIC_KEY_PATH,
         sync_receipts=lambda warden: live.issue_receipts(lw) and None,
@@ -242,6 +254,7 @@ def live_services(lw: Any) -> Services:
         cases=cases, locks=locks, audit_path=lw.warden.audit.path,
         passkey=lambda warden: live.open_passkey_request(warden.audit.entries()),
         extra={"airi": "configured" if lw.airi else "waiting for allowlist"},
+        charge_card_directly=charge_card_directly,
     )
 
 
@@ -681,6 +694,35 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         name, proposal = attack_for(body.agent_id, single_step_attacks(), turn)
         decision = board().warden.submit(proposal)
         return _jsonable({"scenario": name, "proposal_id": proposal.id, "action": decision.action})
+
+    @app.post("/api/card-outside-warden")
+    def card_outside_warden(body: AgentBody) -> dict[str, Any]:
+        """Someone copied the agent's card details and spends at a merchant the card itself allows, within its
+        limits: only Warden can stop it, and only if Airwallex asks Warden (remote authorization)."""
+        agent_or_404(body.agent_id)
+        card_id = next((c for c, a in board().card_agents().items() if a == body.agent_id), None)
+        mandate = board().warden.mandates.get(body.agent_id)
+        if card_id is None or mandate is None or not mandate.allowed_mccs:
+            raise HTTPException(400, f"{body.agent_id} has no card")
+        mcc = next((m for m in TYPICAL_PURCHASE if m in mandate.allowed_mccs), sorted(mandate.allowed_mccs)[0])
+        amount = max(Decimal("1"), (mandate.per_txn_cap * Decimal("0.4")).quantize(Decimal("1")))
+        started = time.time()
+        if board().services.charge_card_directly is None:  # offline: play Airwallex asking Warden
+            answer = app.state.authorizer.decide({
+                "version": 2, "card_id": card_id, "card_transaction_event_id": f"offline_{int(started * 1000)}",
+                "transaction_type": "AUTHORIZATION", "transaction_amount": str(amount), "transaction_currency": "USD",
+                "merchant": {"name": "STOLEN CARD TEST", "category_code": mcc}})
+            declined = answer["response_status"] == "DECLINED"
+            network = {"result": "DECLINED" if declined else "APPROVED",
+                       "failure_reason": "REMOTE_AUTH_DECLINED" if declined else None}
+        else:
+            network = board().services.charge_card_directly(card_id, amount, mcc)
+        asked = next((e["data"] for e in reversed(board().warden.audit.entries())
+                      if e["event"] == "remote_authorization" and e["data"].get("card_id") == card_id
+                      and e["ts"] >= started - 1), None)
+        return _jsonable({"agent_id": body.agent_id, "amount": amount, "merchant_category": mcc,
+                          "airwallex": network.get("result"), "failure_reason": network.get("failure_reason"),
+                          "warden": {k: asked.get(k) for k in ("response_status", "reason", "decided_in_ms")} if asked else None})
 
     @app.post("/api/normal-day")
     def run_normal_day(body: AgentBody) -> dict[str, Any]:
