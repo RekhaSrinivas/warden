@@ -282,6 +282,42 @@ function codes(decision) {
   return items.length ? `<div class="codes">${items.join("")}</div>` : "";
 }
 
+// Plain-English reasons, citing the rule a human set (the mandate) or what the evidence shows.
+function why(decision, p) {
+  if (!decision || decision.action === "ALLOW") return "";
+  const a = (state.agents || []).find((x) => x.id === p.agent_id) || {};
+  const who = esc(p.agent_id);
+  const RULES = {
+    OVER_TXN_CAP: () => `Asks for ${esc(money(p.amount, p.currency))}; the mandate a human set for ${who} allows at most ${a.per_txn_cap != null ? esc(money(a.per_txn_cap)) : "a smaller amount"} per payment.`,
+    OVER_WEEKLY_CAP: () => `Would take ${who} past ${a.weekly_cap != null ? `the ${esc(money(a.weekly_cap))}` : "the"} weekly budget in its mandate.`,
+    PAYEE_NOT_ALLOWLISTED: () => `${esc(p.payee_name)} isn't on the approved payee list a human set.`,
+    MERCHANT_CATEGORY_NOT_ALLOWED: () => `This merchant's category${p.merchant_category ? ` (${esc(p.merchant_category)})` : ""} isn't one ${who}'s mandate allows${a.mccs?.length ? ` (${esc(a.mccs.join(", "))})` : ""}.`,
+    CURRENCY_NOT_ALLOWED: () => `Paid in ${esc(p.currency)}; the mandate allows only ${esc((a.currencies || ["USD"]).join(", "))}.`,
+    DUPLICATE_REQUEST: () => "The same request as a payment already made: Warden never pays twice.",
+    RECORD_MISMATCH: () => "It doesn't match the approved record in the company's books (amount, payee or bank account).",
+    AGENT_CONTAINED: () => `${who} has been fired: it can't pay anything until a human reinstates it.`,
+    RESERVE_FLOOR: () => "It would take the account below the reserve the company keeps.",
+    VELOCITY: () => `Too many payments from ${who} in one hour.`,
+    NON_POSITIVE_AMOUNT: () => "The amount isn't a positive number.",
+    APPROVAL_MISMATCH: () => "The payment was changed after a human approved it.",
+    LOOKALIKE_DOMAIN: () => "The sender's domain imitates an approved vendor's.",
+    BANK_DETAILS_CHANGED: () => "It asks to pay new bank details: the classic invoice scam.",
+    URGENCY_PRESSURE: () => "It pushes for speed (\"today\", \"urgent\").",
+    SECRECY_REQUEST: () => "It asks to keep the payment quiet.",
+    GIFT_CARD: () => "Gift cards are a common way to cash out stolen money.",
+    PROMPT_INJECTION: () => "The document contains instructions aimed at the AI, not at a person.",
+    UNTRUSTED_INSTRUCTION: () => "The instruction to pay came from a message, not from an approved record.",
+    UNKNOWN_SENDER: () => "The sender isn't a known vendor.",
+    AMOUNT_MISMATCH: () => "The amount differs from the evidence behind it.",
+    RISK_READER_UNAVAILABLE: () => "The evidence couldn't be read, so a human must look.",
+  };
+  const codes = [...(decision.violations || []), ...(decision.risk?.flags || []).filter((f) => !(decision.violations || []).includes(f))];
+  const lines = [...new Set(codes)].filter((c) => RULES[c]).slice(0, 4).map((c) => `<li>${RULES[c]()}</li>`);
+  if (!lines.length) return "";
+  const label = decision.action === "STEP_UP" ? "Why it's held" : decision.action === "CONTAIN" ? "Why the agent was fired" : "Why it's blocked";
+  return `<div class="why"><span class="why-h">${label}</span><ul>${lines.join("")}</ul></div>`;
+}
+
 function explanation(decision) {
   const risk = decision?.risk;
   if (!risk || !risk.explanation || risk.source === "skipped") return "";
@@ -344,7 +380,7 @@ function feedCard(item) {
           <span class="rail-name">${esc(rail.label)}</span>
         </div>
         <p class="desc"><span class="agent-tag">${esc(p.agent_id)}</span>${p.via === "mcp" ? '<span class="via-tag" title="Requested by a real agent connected over MCP">via MCP</span>' : ""} ${esc(p.description)}</p>
-        ${codes(d)}${explanation(d)}${held}${execution(d)}${containment(d)}${refused}
+        ${why(d, p)}${codes(d)}${explanation(d)}${held}${execution(d)}${containment(d)}${refused}
       </div>
       <div class="card-side">
         <span class="badge ${action}">${BADGES[action] || "Pending"}</span>

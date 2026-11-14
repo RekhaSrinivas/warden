@@ -814,3 +814,12 @@ table.grid td.mono, table.grid .chain { color: var(--ink-2); }
 .lock-card .lock-ids { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); display: grid; gap: 4px;
   font-size: 12.5px; color: var(--muted); }
 .lock-card .lock-ids .mono, .lock-card .lock-ids code { word-break: break-all; }
+
+/* plain-English reasons on each decision */
+.why { margin: 8px 0 6px; padding: 9px 12px; border-radius: 10px; background: var(--bad-wash);
+  border: 1px solid color-mix(in srgb, var(--bad) 22%, transparent); }
+.card.STEP_UP .why { background: var(--hold-wash); border-color: color-mix(in srgb, var(--hold) 25%, transparent); }
+.why-h { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bad); margin-bottom: 4px; }
+.card.STEP_UP .why-h { color: var(--hold); }
+.why ul { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.why li + li { margin-top: 2px; }

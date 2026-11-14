@@ -337,3 +337,6 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
 .btn.btn-gh svg { width: 18px; height: 18px; flex: none; }
 .nav-gh { display: inline-flex; align-items: center; gap: 7px; }
 .nav-gh svg { width: 16px; height: 16px; }
+
+.hero-jobs { max-width: 640px; margin: 12px auto 0; color: var(--muted); font-size: clamp(14px, 1.05vw, 16px); opacity: 0; animation: lineIn 1s 0.95s ease forwards; }
+.hero-jobs b { color: var(--ink-2); font-weight: 600; }

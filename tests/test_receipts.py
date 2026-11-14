@@ -188,3 +188,18 @@ def test_the_published_live_run_verifies_and_a_tampered_copy_does_not(tmp_path):
     forged = tmp_path / "receipts.jsonl"
     forged.write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert verify_files(forged, run / "receipt-public-key.pem") == 1
+
+
+def test_receipt_page_explains_a_block_in_plain_words(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from warden import demo_world as w
+    from warden.web import create_app
+
+    app = create_app()
+    client = TestClient(app)
+    app.state.board.warden.submit(w.fake_bank_change("1200"))
+    receipts = client.get("/api/state").json()["receipts"]["recent"]
+    blocked = next(r for r in receipts if r["action"] in ("BLOCK", "CONTAIN"))
+    page = client.get(f"/verify/{blocked['id']}").text
+    assert "In plain words" in page and "per-payment limit" in page and "never sent to the rail" in page

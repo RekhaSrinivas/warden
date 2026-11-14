@@ -289,6 +289,40 @@ def _receipt_row(r: rc.Receipt) -> str:
             f'<span class="muted">{html.escape(str(b.get("settlement_status") or ""))}</span></span></a>')
 
 
+
+_WHY = {
+    "OVER_TXN_CAP": "Over the per-payment limit in the mandate a human set for this agent.",
+    "OVER_WEEKLY_CAP": "Would take the agent past the weekly budget in its mandate.",
+    "PAYEE_NOT_ALLOWLISTED": "The payee isn't on the approved payee list a human set.",
+    "MERCHANT_CATEGORY_NOT_ALLOWED": "The merchant's category isn't one the mandate allows.",
+    "CURRENCY_NOT_ALLOWED": "The currency isn't one the mandate allows.",
+    "DUPLICATE_REQUEST": "The same request as a payment already made: Warden never pays twice.",
+    "RECORD_MISMATCH": "It doesn't match the approved record in the company's books.",
+    "AGENT_CONTAINED": "The agent had been fired: it can't pay anything.",
+    "RESERVE_FLOOR": "It would take the account below the reserve the company keeps.",
+    "VELOCITY": "Too many payments from this agent in one hour.",
+    "APPROVAL_MISMATCH": "The payment was changed after a human approved it.",
+    "LOOKALIKE_DOMAIN": "The sender's domain imitates an approved vendor's.",
+    "BANK_DETAILS_CHANGED": "It asked to pay new bank details: the classic invoice scam.",
+    "URGENCY_PRESSURE": "It pushed for speed.",
+    "SECRECY_REQUEST": "It asked to keep the payment quiet.",
+    "GIFT_CARD": "Gift cards are a common way to cash out stolen money.",
+    "PROMPT_INJECTION": "The document contained instructions aimed at the AI, not at a person.",
+    "UNTRUSTED_INSTRUCTION": "The instruction to pay came from a message, not from an approved record.",
+    "UNKNOWN_SENDER": "The sender wasn't a known vendor.",
+    "AMOUNT_MISMATCH": "The amount differed from the evidence behind it.",
+}
+
+
+def _why(d: dict) -> str:
+    """Plain-English reasons for a decision that wasn't simply allowed."""
+    if d.get("action") == "ALLOW":
+        return "Within the mandate a human set, and nothing suspicious in the evidence."
+    codes = list(d.get("violations") or []) + [f for f in ((d.get("risk") or {}).get("flags") or []) if f not in (d.get("violations") or [])]
+    lines = [_WHY[c] for c in dict.fromkeys(codes) if c in _WHY][:4]
+    return "".join(f"<div>• {html.escape(x)}</div>" for x in lines) or "—"
+
+
 def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
     b = receipt.body
     d = b.get("decision") or {}
@@ -320,14 +354,16 @@ def _receipt_detail(receipt: rc.Receipt, checks: list[dict[str, Any]]) -> str:
         ("Amount", f'{html.escape(str(b.get("amount")))} {html.escape(str(b.get("currency")))}'),
         ("Payee", f'{html.escape(str((b.get("payee") or {}).get("name")))} '
                   f'<span class="mono muted">{html.escape(str((b.get("payee") or {}).get("id")))}</span>'),
-        ("Rail", html.escape(f'{b.get("rail")} via {_RAIL_NAMES.get(str(e.get("rail")), e.get("rail") or "—")}')),
+        ("Rail", html.escape(f'{b.get("rail")} via {_RAIL_NAMES.get(str(e.get("rail")), e.get("rail"))}' if e.get("rail")
+                            else f'{b.get("rail")} (never sent to the rail)')),
         ("Agent", html.escape(str(b.get("agent_id")))),
         ("Settlement", html.escape(str(b.get("settlement_status")))),
         ("Reasons", html.escape("; ".join(d.get("reasons") or [])) or "—"),
+        ("In plain words", _why(d)),
         ("Violations", html.escape(", ".join(d.get("violations") or [])) or "none"),
         ("Risk read", html.escape(f'severity {risk.get("severity")} · {", ".join(risk.get("flags") or []) or "no flags"}'
                                   f' · {risk.get("source")}')),
-        ("Why", html.escape(str(risk.get("explanation") or "—"))),
+        ("Claude's reading" if risk.get("source") == "claude" else "Risk reader", html.escape(str(risk.get("explanation") or "—"))),
         ("Approval", html.escape(f'{b["approval"].get("approver")} · {b["approval"].get("approval_hash")}')
             if (b.get("approval") or {}).get("approval_hash") else "No human approval needed"),
     ]
