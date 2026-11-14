@@ -107,4 +107,8 @@ def check(mandate: Mandate, proposal: Proposal, state: SpendState, now: float,
         violations.append("RESERVE_FLOOR")
     if state.count_since(proposal.agent_id, now - HOUR_SECONDS) >= mandate.velocity_per_hour:
         violations.append("VELOCITY")
+    # Set by the agent gateway when a cited record does not exist or does not match the request
+    # (other payee, other amount, other bank account): a real invoice number can't carry a fake payment.
+    if proposal.extra.get("record_mismatch"):
+        violations.append("RECORD_MISMATCH")
     return violations

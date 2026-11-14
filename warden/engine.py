@@ -94,6 +94,11 @@ class Warden:
 
     # --- agent side -------------------------------------------------------------
 
+    def note(self, event: str, **data: Any) -> dict[str, Any]:
+        """Log something an agent reported (e.g. a suspicious email it refused to act on). Moves no money."""
+        with self._lock:
+            return self.audit.append(event, **data)
+
     def submit(self, proposal: Proposal) -> Decision:
         with self._lock:
             return self._submit(proposal)

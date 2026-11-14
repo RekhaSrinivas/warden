@@ -4,3 +4,4 @@ uvicorn
 httpx
 pytest
 cryptography
+mcp>=2.3,<3

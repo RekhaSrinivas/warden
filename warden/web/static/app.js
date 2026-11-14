@@ -103,6 +103,13 @@ function renderHeader() {
   pill.className = `mode-pill ${state.mode === "live" ? "live" : ""}`;
   $("btn-reset").hidden = state.mode === "live";
   $("btn-locks").hidden = state.mode === "live";
+  const pk = state.passkey;
+  $("passkey-banner").hidden = !pk;
+  $("passkey-banner").innerHTML = pk
+    ? `${LOCK_ICON}<div><b>Airi needs your passkey.</b> Warden approved ${esc(pk.agent_id)}'s order:
+       ${esc(money(pk.amount, pk.currency))} at ${esc(pk.merchant)} (${esc(pk.description)}). Nothing is charged until you confirm.</div>
+       <a class="btn btn-approve" href="${esc(pk.approval_url)}" target="_blank" rel="noopener">Confirm with passkey ↗</a>`
+    : "";
 }
 
 // --- 1. hire ------------------------------------------------------------------
@@ -286,7 +293,7 @@ function feedCard(item) {
           <span class="payee">${esc(p.payee_name)}</span>
           <span class="rail-name">${esc(rail.label)}</span>
         </div>
-        <p class="desc"><span class="agent-tag">${esc(p.agent_id)}</span> ${esc(p.description)}</p>
+        <p class="desc"><span class="agent-tag">${esc(p.agent_id)}</span>${p.via === "mcp" ? '<span class="via-tag" title="Requested by a real agent connected over MCP">via MCP</span>' : ""} ${esc(p.description)}</p>
         ${codes(d)}${explanation(d)}${held}${execution(d)}${containment(d)}${refused}
       </div>
       <div class="card-side">
@@ -334,6 +341,37 @@ function inboxItem(item) {
       <div class="tamper-result" hidden></div>
     </div>`;
 }
+
+function renderFlags() {
+  const flags = state.flags || [];
+  $("flag-count").textContent = flags.length;
+  $("flag-count").className = `count ${flags.length ? "has" : ""}`;
+  $("connect-name").textContent = $("attack-agent").value || "an agent";
+  $("flags").innerHTML = flags.length
+    ? flags.map((f) => `
+      <div class="flag">
+        <div class="flag-top"><span class="agent-tag">${esc(f.agent_id)}</span><span class="time">${clock(f.ts)}</span></div>
+        <p>${esc(f.summary)}</p>
+        ${f.source ? `<div class="mono muted">${esc(f.source)}</div>` : ""}
+      </div>`).join("")
+    : `<p class="muted small">Nothing yet. An honest agent reports what it refuses to pay.</p>`;
+}
+
+$("btn-connect").addEventListener("click", async (event) => {
+  const agent = $("attack-agent").value;
+  await busy(event.currentTarget, "Issuing a token…", async () => {
+    const { ok, data } = await api("/api/mcp/token", { agent_id: agent });
+    const box = $("connect-result");
+    box.hidden = false;
+    box.innerHTML = ok
+      ? `<p class="small">Token for <b>${esc(data.agent_id)}</b>, shown once (Warden keeps only its hash). Connect Claude Code:</p>
+         <pre class="mono cmd">${esc(data.claude_code)}</pre>
+         <p class="small muted">Or run the demo agent: <span class="mono">python -m warden.agent_runner --token ${esc(data.token)}</span></p>`
+      : `<p class="bad">${esc(data.detail || "Could not issue a token")}</p>`;
+  });
+});
+
+$("attack-agent").addEventListener("change", () => { $("connect-name").textContent = $("attack-agent").value; });
 
 function renderInbox() {
   const n = state.inbox.length;
@@ -521,6 +559,7 @@ function render() {
   renderAgents();
   renderFeed();
   renderInbox();
+  renderFlags();
   renderReceipts();
   renderCases();
   renderLocks();

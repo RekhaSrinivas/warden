@@ -26,6 +26,8 @@
     </div>
   </header>
 
+  <div id="passkey-banner" class="passkey-banner" hidden></div>
+
   <nav class="story" aria-label="Story">
     <a href="#hire"><b>1</b> Hire it</a>
     <a href="#guard"><b>2</b> Guard it</a>
@@ -87,6 +89,17 @@
               <span class="count" id="inbox-count">0</span>
             </div>
             <div id="inbox"></div>
+          </section>
+          <section class="panel mcp-panel">
+            <div class="panel-head">
+              <h3>Real agents, over MCP</h3>
+              <span class="count" id="flag-count">0</span>
+            </div>
+            <p class="hint">Claude Code or any MCP agent can work as a hired agent. It gets Warden's six tools and its own token: never a card number, key or credential.</p>
+            <button class="btn btn-ghost btn-wide" id="btn-connect">Connect a real agent as <b id="connect-name">…</b></button>
+            <div id="connect-result" class="connect-result" hidden></div>
+            <h4 class="flags-head">Flagged by agents</h4>
+            <div id="flags"></div>
           </section>
         </aside>
       </div>

@@ -71,3 +71,13 @@ def test_offline_story_contains_only_the_attacked_agent_and_every_lock_holds(tmp
     assert case["amount"] == "180" and case["state"] == "DISPUTE_SUBMITTED"  # never RECOVERED on submission
     story.save(extra)
     assert (tmp_path / "evidence.json").exists()
+
+
+def test_dashboard_shows_an_airi_passkey_request_until_its_outcome_is_logged(monkeypatch, capsys):
+    monkeypatch.setattr(live, "PASSKEY_REQUESTS", [])
+    live.announce_passkey({"agent_id": w.PROCUREMENT, "amount": "120.00", "currency": "USD", "merchant": "OfficeCo",
+                           "description": "Ergonomic office chair", "mandate_id": "mdt_1",
+                           "approval_url": "https://app.airi.com/passkey/checkout?mandate_id=mdt_1"})
+    assert live.open_passkey_request([])["approval_url"].endswith("mdt_1")
+    done = [{"event": "decision", "data": {"execution": {"mandate_id": "mdt_1", "status": "SUCCEEDED"}}}]
+    assert live.open_passkey_request(done) is None

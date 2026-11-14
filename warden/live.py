@@ -45,7 +45,7 @@ AIRI_CREDENTIAL_DIR = "/home/chres/.warden/airi"
 AIRI_PASSKEY_TIMEOUT = 300
 
 # Fake but well-formed US bank details for the three approved vendors.
-VENDOR_ACCOUNTS = {"ben_acme": "50001121", "ben_globex": "50001122", "ben_initech": "50001123"}
+VENDOR_ACCOUNTS = w.VENDOR_ACCOUNTS
 # On-chain limits per agent, in *USDZ: tighter than the mandate, since x402 calls cost cents.
 METAL_LIMITS = {w.PROCUREMENT: ("0.05", "0.5"), w.RESEARCH: ("0.05", "1")}
 DEFAULT_METAL_LIMITS = ("0.05", "0.5")
@@ -269,8 +269,27 @@ def _airi_rail() -> AiriRail | None:
                     files=WslFiles("Ubuntu"), on_passkey=announce_passkey, passkey_timeout=AIRI_PASSKEY_TIMEOUT)
 
 
+# Passkey requests Airi is waiting on, newest last. The dashboard shows the open one as a banner.
+PASSKEY_REQUESTS: list[dict[str, Any]] = []
+
+
+def open_passkey_request(entries: list[dict[str, Any]], within: float = 330) -> dict[str, Any] | None:
+    """The newest passkey request that is still waiting: recent, and with no decision logged for its mandate."""
+    if not PASSKEY_REQUESTS:
+        return None
+    request = PASSKEY_REQUESTS[-1]
+    if time.time() - request["ts"] > within:
+        return None
+    done = any((e["data"].get("execution") or {}).get("mandate_id") == request["mandate_id"]
+               for e in entries if e["event"] in ("decision", "approval"))
+    return None if done else request
+
+
 def announce_passkey(request: dict[str, Any]) -> None:
     """The one place a human is asked to confirm a Visa checkout. Warden has already approved it."""
+    PASSKEY_REQUESTS.append({**{k: request.get(k) for k in ("agent_id", "amount", "currency", "merchant",
+                                                           "description", "approval_url", "mandate_id")},
+                             "ts": time.time()})
     print(f"  Airi: {request['agent_id']} wants {request['amount']} {request['currency']} at {request['merchant']} "
           f"({request['description']}). Warden approved it; confirm with your passkey:", flush=True)
     print(f"    {request['approval_url']}", flush=True)

@@ -57,7 +57,9 @@ class Proposal:
     def summary(self) -> dict[str, Any]:
         """What goes into the audit log: everything except rail-specific extras."""
         data = asdict(self)
-        data.pop("extra")
+        extra = data.pop("extra")
+        if extra.get("via"):  # where the request came from, e.g. "mcp" for an agent connected over MCP
+            data["via"] = extra["via"]
         data["amount"] = str(self.amount)
         return data
 

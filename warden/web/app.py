@@ -13,6 +13,7 @@ import json
 import random
 import tempfile
 import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from pathlib import Path
@@ -28,6 +29,8 @@ from warden import hire as h
 from warden import receipts as rc
 from warden.audit import AuditLog
 from warden.engine import ApprovalError, Warden
+from warden.gateway import Gateway, TokenStore
+from warden.mcp_server import TOKENS_PATH, build_server
 from warden.models import Proposal
 from warden.rails.fake import FakeRail
 from warden.web.verify import create_verify_router
@@ -43,6 +46,7 @@ RAIL_GROUPS = [
     ("metal", "Metal x402", ("x402",)),
 ]
 DECISION_EVENTS = ("decision", "approval", "denial")
+MCP_PATH = "/mcp"
 CASE_PIPELINE = ["UNATTRIBUTED", "INVESTIGATING", "DISPUTE_SUBMITTED", "RECOVERED"]
 
 
@@ -97,6 +101,7 @@ class Services:
     cases: Callable[[], list[dict[str, Any]]]
     locks: Callable[[Warden], dict[str, Any]]
     test_locks: Callable[[Warden], dict[str, Any]] | None = None
+    passkey: Callable[[Warden], dict[str, Any] | None] = lambda warden: None  # an Airi checkout waiting on the human
     audit_path: Path | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -210,6 +215,7 @@ def live_services(lw: Any) -> Services:
         draft=draft, commit_hire=commit_hire, fire=fire,
         reconcile=lambda warden: [c.to_json() for c in live.reconcile_and_recover(lw)],
         cases=cases, locks=locks, audit_path=lw.warden.audit.path,
+        passkey=lambda warden: live.open_passkey_request(warden.audit.entries()),
         extra={"airi": "configured" if lw.airi else "waiting for allowlist"},
     )
 
@@ -356,6 +362,10 @@ class Dashboard:
             "receipts": self.receipts(),
             "cases": {"pipeline": CASE_PIPELINE, "items": self.services.cases()},
             "locks": self.services.locks(self.warden),
+            "passkey": self.services.passkey(self.warden),
+            "flags": [{"agent_id": e["data"].get("agent_id"), "summary": e["data"].get("summary"),
+                       "source": e["data"].get("source"), "ts": e["ts"]}
+                      for e in entries if e["event"] == "agent_flag"][-20:][::-1],
             "audit": {"count": len(entries), "intact": broken is None, "broken_at": broken,
                       "recent": [{k: e[k] for k in ("seq", "ts", "event", "prev_hash", "hash")}
                                  for e in entries[-40:]][::-1]},
@@ -394,14 +404,33 @@ def offline_factory() -> tuple[Warden, Services]:
     return offline_warden(services.audit_path), services
 
 
+class TokenBody(BaseModel):
+    agent_id: str
+
+
 def create_app(warden: Warden | None = None, services: Services | None = None,
-               factory: Callable[[], tuple[Warden, Services]] | None = None) -> FastAPI:
-    """With no arguments: the offline demo, with a Reset button. Live: pass the live Warden and services."""
+               factory: Callable[[], tuple[Warden, Services]] | None = None,
+               tokens: TokenStore | None = None) -> FastAPI:
+    """With no arguments: the offline demo, with a Reset button. Live: pass the live Warden and services.
+    Either way, agents connect over MCP at /mcp and their requests run through this same Warden."""
     if warden is None or services is None:
         factory = factory or offline_factory
         warden, services = factory()
 
-    app = FastAPI(title="Warden", docs_url=None, redoc_url=None)
+    tokens = tokens or TokenStore(TOKENS_PATH)
+    gateway = Gateway(lambda: app.state.board.warden)  # follows a Reset to the new Warden
+    mcp = build_server(gateway, tokens)
+    mcp_app = mcp.streamable_http_app(streamable_http_path=MCP_PATH, stateless_http=True, json_response=True)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        async with mcp.session_manager.run():
+            yield
+
+    app = FastAPI(title="Warden", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app.router.routes.extend(mcp_app.routes)
+    app.state.tokens = tokens
+    app.state.gateway = gateway
     app.state.board = Dashboard(warden, services)
     app.state.factory = factory
     app.state.drafts = {}
@@ -452,6 +481,15 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         except h.HireError as e:
             raise HTTPException(422, str(e)) from None
         return _jsonable({"agent_id": body.agent_id, "provisioning": hired.get("provisioning")})
+
+    @app.post("/api/mcp/token")
+    def mcp_token(body: TokenBody, request: Request) -> dict[str, Any]:
+        """Issue a token so a real agent (Claude Code, an Agent SDK app) can connect as this hired agent."""
+        agent_or_404(body.agent_id)
+        token = app.state.tokens.issue(body.agent_id)
+        url = f"{str(request.base_url).rstrip('/')}{MCP_PATH}"
+        return {"agent_id": body.agent_id, "token": token, "url": url,
+                "claude_code": f'claude mcp add --transport http warden {url} --header "Authorization: Bearer {token}"'}
 
     @app.post("/api/fire")
     def fire(body: FireBody) -> dict[str, Any]:
@@ -549,12 +587,14 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         """Server-sent events: one 'audit' event whenever the log grows (or resets)."""
 
         async def events():
-            seen, idle = -1, 0.0
+            seen, idle = None, 0.0
             while True:
-                count = len(board().warden.audit.entries())
+                # The log, plus any Airi passkey request that opened or closed since (it logs nothing itself).
+                passkey = board().services.passkey(board().warden)
+                count = (len(board().warden.audit.entries()), (passkey or {}).get("mandate_id"))
                 if count != seen:
                     seen, idle = count, 0.0
-                    yield f"event: audit\ndata: {json.dumps({'count': count})}\n\n"
+                    yield f"event: audit\ndata: {json.dumps({'count': count[0]})}\n\n"
                     if once:
                         return
                 elif idle >= 15:
