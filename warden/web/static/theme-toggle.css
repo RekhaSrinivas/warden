@@ -19,3 +19,20 @@
 .theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after {
   transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, fill 0.4s ease, stroke 0.4s ease !important;
 }
+
+/* Story | Console: the same switch, in the same place, on both pages */
+.view-switch {
+  position: relative; display: inline-flex; align-items: center; padding: 3px; border-radius: 999px; flex: none;
+  border: 1px solid var(--tt-line, rgba(127, 127, 127, 0.3)); background: var(--tt-bg, transparent);
+  font-weight: 600; font-size: 13.5px; line-height: 1;
+}
+.view-switch::before {
+  content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px;
+  background: var(--tt-active, currentColor); transition: transform 0.35s cubic-bezier(.3, .8, .3, 1.2);
+}
+.view-switch[data-view="console"]::before { transform: translateX(100%); }
+.view-switch a { position: relative; z-index: 1; min-width: 78px; padding: 8px 14px; text-align: center; border-radius: 999px;
+  color: var(--tt-ink, currentColor); text-decoration: none !important; transition: color 0.25s ease; }
+.view-switch a[aria-current="page"] { color: var(--vs-on, #04241b); }
+.view-switch a:not([aria-current="page"]):hover { color: var(--tt-active, currentColor); }
+.view-switch:focus-within { outline: 2px solid var(--tt-active, currentColor); outline-offset: 2px; }

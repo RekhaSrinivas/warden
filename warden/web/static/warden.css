@@ -569,3 +569,5 @@ table.grid td.mono, table.grid .chain { color: var(--ink-2); }
 
 .refused { margin: 6px 0 4px; padding: 10px 12px; border-radius: 10px; background: var(--bad-wash); color: var(--ink-2); font-size: 13.5px; }
 .refused b { color: var(--bad); }
+.view-switch { --tt-line: var(--line-strong); --tt-bg: var(--card); --tt-ink: var(--ink-2); --tt-active: var(--brand); --vs-on: #fff; }
+:root[data-theme="dark"] .view-switch { --vs-on: #04241b; }

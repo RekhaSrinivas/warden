@@ -33,7 +33,8 @@ from warden.authorize import RemoteAuthorizer
 from warden.engine import ApprovalError, Warden
 from warden.gateway import Gateway, TokenStore
 from warden.mcp_server import TOKENS_PATH, build_server
-from warden.models import Proposal
+from warden.mandate import Mandate
+from warden.models import Evidence, Proposal
 from warden.rails.fake import FakeRail
 from warden.web.verify import create_verify_router
 
@@ -437,10 +438,18 @@ class Dashboard:
 
 # --- scenarios the buttons fire -----------------------------------------------------------
 
-def attack_for(agent_id: str, pool: list[gauntlet.Scenario]) -> tuple[str, Proposal]:
-    """A one-proposal attack aimed at this agent: its own scenarios first, else one retargeted at it."""
-    own = [s for s in pool if s.steps()[0].agent_id == agent_id]
-    scenario = random.choice(own or pool)
+# The order a presenter wants: held for a human first (the inbox), then a block (strike one), then
+# the one that fires the agent. Unlisted attacks follow in their gauntlet order.
+ATTACK_ORDER = ("Lookalike domain invoice", "Fake 'bank details changed' email", "CEO impersonation")
+
+
+def attack_for(agent_id: str, pool: list[gauntlet.Scenario], turn: int | None = None) -> tuple[str, Proposal]:
+    """A one-proposal attack aimed at this agent: its own scenarios first, else one retargeted at it.
+    With `turn`, the attacks come in a fixed order (repeatable for a demo); without it, at random."""
+    own = [s for s in pool if s.steps()[0].agent_id == agent_id] or pool
+    rank = {name: i for i, name in enumerate(ATTACK_ORDER)}
+    own = sorted(own, key=lambda s: next((rank[k] for k in rank if s.name.startswith(k)), len(rank)))
+    scenario = random.choice(own) if turn is None else own[turn % len(own)]
     proposal = scenario.steps()[0]
     if proposal.agent_id != agent_id:
         proposal = replace(proposal, agent_id=agent_id)
@@ -452,12 +461,55 @@ def single_step_attacks() -> list[gauntlet.Scenario]:
     return [s for s in gauntlet.SCENARIOS if s.attack and len(s.steps()) == 1]
 
 
-def normal_day(agent_id: str) -> list[Proposal]:
-    """Each agent's ordinary work."""
+# A hired agent's ordinary card spend, by the merchant categories its mandate allows.
+TYPICAL_PURCHASE: dict[str, tuple[str, str, Decimal]] = {
+    "4511": ("United Airlines", "Flight to the customer meeting", Decimal("0.6")),
+    "7011": ("Marriott", "Hotel, two nights", Decimal("0.45")),
+    "4722": ("Amtrak via travel agent", "Train tickets", Decimal("0.3")),
+    "4121": ("Yellow Cab", "Taxi to the airport", Decimal("0.1")),
+    "5812": ("Corner Bistro", "Team lunch", Decimal("0.2")),
+    w.MCC_OFFICE_SUPPLIES: ("Office Depot", "Notebooks and pens", Decimal("0.15")),
+    w.MCC_STATIONERY: ("Staples", "Printer paper", Decimal("0.15")),
+    w.MCC_OFFICE_FURNITURE: ("OfficeCo", "Desk lamp", Decimal("0.3")),
+    w.MCC_SOFTWARE: ("JetBrains", "IDE licence", Decimal("0.3")),
+    w.MCC_DATA_SERVICES: ("DataHub", "Monthly data feed", Decimal("0.2")),
+}
+
+
+def normal_day(agent_id: str, mandate: Mandate | None = None) -> list[Proposal]:
+    """Each agent's ordinary work. Approved bills carry a stable request id, so pressing the button
+    twice is a retry Warden absorbs ("never pays twice"), not a second payment."""
     if agent_id == w.RESEARCH:
-        return [w.data_api_call(), w.data_api_call()]
-    return [w.invoice("Acme Office Supply", "420", "INV-1001"), w.invoice("Globex Paper Co", "260", "INV-1002"),
-            w.supplies_card()]
+        return [w.data_api_call(), w.data_api_call()]  # pay-per-call: every call is a new purchase
+    if agent_id == w.PROCUREMENT:
+        return [w.invoice("Acme Office Supply", "420", "INV-1001", request_id="req_day_INV-1001"),
+                w.invoice("Globex Paper Co", "260", "INV-1002", request_id="req_day_INV-1002"),
+                replace(w.supplies_card(), request_id="req_day_PR-311")]
+    if mandate is None:
+        return []
+    day = []
+    for mcc in sorted(mandate.allowed_mccs):
+        if mcc not in TYPICAL_PURCHASE:
+            continue
+        merchant, what, share = TYPICAL_PURCHASE[mcc]
+        ceiling = mandate.per_txn_cap if mandate.approval_threshold is None else min(mandate.per_txn_cap, mandate.approval_threshold)
+        amount = max(Decimal("1"), (ceiling * share).quantize(Decimal("1")))
+        day.append(Proposal(
+            agent_id=agent_id, rail="card", amount=amount, currency=sorted(mandate.currencies)[0],
+            payee_id=f"merchant_{merchant.lower().split()[0]}", payee_name=merchant, merchant_category=mcc,
+            description=what, request_id=f"req_day_{agent_id}_{mcc}",
+            evidence=(Evidence(f"purchase_request:{agent_id}-{mcc}", True, f"Team lead approved: {what.lower()}."),),
+            agent_reasoning=f"{what}, approved by the team lead and inside my mandate."))
+    return day[:3]
+
+
+def published_live_view() -> dict[str, Any] | None:
+    """The newest published live run's console view, marked with where it came from."""
+    runs = sorted((Path(__file__).resolve().parents[2] / "docs" / "live-runs").glob("*/dashboard-state.json"))
+    view = _read_json(runs[-1]) if runs else None
+    if view:
+        view["snapshot"] = runs[-1].parent.name
+    return view
 
 
 # --- the app ------------------------------------------------------------------------------
@@ -501,9 +553,15 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
     app.state.board = Dashboard(warden, services)
     app.state.factory = factory
     app.state.drafts = {}
+    app.state.attack_turns: dict[str, int] = {}  # each agent's next attack, in ATTACK_ORDER
     app.state.scorecard = None
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
-    app.include_router(create_verify_router(services.receipts_path, services.public_key_path, services.audit_path))
+    def current_book() -> tuple[Path, Path, Path]:  # the verify page follows whatever demo is running now
+        b = board()
+        b.services.sync_receipts(b.warden)
+        return b.services.receipts_path, b.services.public_key_path, b.services.audit_path
+
+    app.include_router(create_verify_router(current=current_book))
 
     def board() -> Dashboard:
         return app.state.board
@@ -512,16 +570,20 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         if agent_id not in board().warden.mandates:
             raise HTTPException(404, f"No agent called {agent_id}")
 
-    def page(template: str) -> str:
+    def page(template: str, view: dict[str, Any] | None = None) -> str:
         html = (HERE / "templates" / template).read_text(encoding="utf-8")
-        initial = json.dumps(board().state()).replace("</", "<\\/")
+        initial = json.dumps(view or board().state()).replace("</", "<\\/")
         return html.replace("{{MODE}}", board().mode).replace("{{TAGLINE}}", TAGLINE) \
                    .replace("{{V}}", ASSET_VERSION).replace("{{INITIAL_STATE}}", initial)
 
     @app.get("/", response_class=HTMLResponse)
     def story() -> str:
-        """The scroll story: the live run, told scene by scene."""
-        return page("story.html")
+        """The scroll story: the live run, told scene by scene. Offline with nothing run yet, it replays
+        the published live run (docs/live-runs), labelled as such, rather than an empty book."""
+        view = board().state()
+        if view["mode"] != "live" and not view["feed"]:
+            view = published_live_view() or view
+        return page("story.html", view)
 
     @app.get("/console", response_class=HTMLResponse)
     def index() -> str:
@@ -587,14 +649,19 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
     @app.post("/api/attack")
     def attack(body: AgentBody) -> dict[str, Any]:
         agent_or_404(body.agent_id)
-        name, proposal = attack_for(body.agent_id, single_step_attacks())
+        turn = app.state.attack_turns.get(body.agent_id, 0)
+        app.state.attack_turns[body.agent_id] = turn + 1
+        name, proposal = attack_for(body.agent_id, single_step_attacks(), turn)
         decision = board().warden.submit(proposal)
         return _jsonable({"scenario": name, "proposal_id": proposal.id, "action": decision.action})
 
     @app.post("/api/normal-day")
     def run_normal_day(body: AgentBody) -> dict[str, Any]:
         agent_or_404(body.agent_id)
-        return _jsonable({"actions": [board().warden.submit(p).action for p in normal_day(body.agent_id)]})
+        day = normal_day(body.agent_id, board().warden.mandates.get(body.agent_id))
+        if not day:
+            raise HTTPException(400, f"{body.agent_id} has no everyday purchases Warden can simulate")
+        return _jsonable({"actions": [board().warden.submit(p).action for p in day]})
 
     @app.post("/api/approve")
     def approve(body: ApproveBody) -> dict[str, Any]:
@@ -635,6 +702,10 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
     def test_locks() -> dict[str, Any]:
         if board().services.test_locks is None:
             raise HTTPException(400, "Live locks are tested by the demo run (python -m warden.demo --live)")
+        if not board().warden.trust.is_contained(w.PROCUREMENT):
+            # Two of the locks are what firing put in place (frozen card, revoked mandate): nothing to test yet.
+            raise HTTPException(409, "Fire procurement-bot first (or send it two scam emails): the locks test "
+                                     "what firing it put in place, with Warden switched off.")
         return _jsonable(board().services.test_locks(board().warden))
 
     # Housekeeping -----------------------------------------------------------------------
@@ -645,9 +716,7 @@ def create_app(warden: Warden | None = None, services: Services | None = None,
         new_warden, new_services = app.state.factory()
         app.state.board = Dashboard(new_warden, new_services)
         app.state.drafts = {}
-        app.router.routes[:] = [r for r in app.router.routes if not getattr(r, "path", "").startswith("/verify")]
-        app.include_router(create_verify_router(new_services.receipts_path, new_services.public_key_path,
-                                                new_services.audit_path))
+        app.state.attack_turns = {}
         return {"ok": True}
 
     @app.get("/api/verify")

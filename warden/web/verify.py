@@ -161,18 +161,28 @@ def check_pasted(data: dict[str, Any], public_key_path: Path) -> list[dict[str, 
 
 
 def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path: Path = rc.PUBLIC_KEY_PATH,
-                         audit_path: Path | None = None, onchain: OnchainVerifier | None = None) -> APIRouter:
+                         audit_path: Path | None = None, onchain: OnchainVerifier | None = None,
+                         current: Callable[[], tuple[Path, Path, Path]] | None = None) -> APIRouter:
+    """`current`, when given, is called before every request: it issues any receipts not yet written and
+    returns the paths in use right now, so the page is never behind the console (or a reset)."""
     router = APIRouter()
     onchain = onchain or OnchainVerifier()
-    if audit_path is None:
+    if audit_path is None and current is None:
         audit_path = load_settings().audit_path
+
+    def paths() -> tuple[Path, Path, Path]:
+        return current() if current else (receipts_path, public_key_path, audit_path)
 
     @router.get("/verify", response_class=HTMLResponse)
     def index() -> str:
-        receipts = rc.load(receipts_path)
-        pem = public_key_path.read_text(encoding="ascii") if public_key_path.exists() else ""
+        receipts_file, key_file, _ = paths()
+        receipts = rc.load(receipts_file)
+        pem = key_file.read_text(encoding="ascii") if key_file.exists() else ""
         rows = "".join(_receipt_row(r) for r in reversed(receipts[-25:])) or \
-            '<p class="muted">No receipts issued yet.</p>'
+            ('<p class="muted">No receipts issued yet. In the offline demo, run something in the '
+             '<a href="/console">console</a> first. The published live run can be checked with nothing but '
+             'its public key:</p><pre>python -m warden.receipts verify docs/live-runs/2026-11-13/receipts.jsonl '
+             'docs/live-runs/2026-11-13/receipt-public-key.pem</pre>')
         return _page("Verify an Intent Receipt", f"""
           <section class="panel">
             <h2>Look up a receipt</h2>
@@ -208,7 +218,7 @@ def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path
             data = await request.json()
             if not isinstance(data, dict):
                 raise ValueError
-            return JSONResponse({"checks": check_pasted(data, public_key_path)})
+            return JSONResponse({"checks": check_pasted(data, paths()[1])})
         except (ValueError, KeyError, TypeError):
             return JSONResponse({"detail": "That is not a Warden receipt."}, status_code=400)
 
@@ -228,13 +238,13 @@ def create_verify_router(receipts_path: Path = rc.RECEIPTS_PATH, public_key_path
     @router.get("/verify/{receipt_id}", response_class=HTMLResponse)
     def receipt_page(receipt_id: str) -> str:
         try:
-            receipt, checks = check_receipt(receipt_id, receipts_path, public_key_path, audit_path)
+            receipt, checks = check_receipt(receipt_id, *paths())
         except KeyError:
             raise HTTPException(404, "No receipt with that id.") from None
         return _page(f"Receipt {receipt.id}", _receipt_detail(receipt, checks))
 
     def _find(receipt_id: str) -> rc.Receipt:
-        for r in rc.load(receipts_path):
+        for r in rc.load(paths()[0]):
             if r.id == receipt_id:
                 return r
         raise HTTPException(404, "No receipt with that id.")

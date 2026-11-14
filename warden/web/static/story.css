@@ -274,7 +274,7 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
 
 /* --- small screens ------------------------------------------------------------------------ */
 @media (max-width: 900px) {
-  .nav-links a:not(.nav-cta) { display: none; }
+  .nav-links > a { display: none; }
   .threat-grid, .fire-grid, .decide-foot { grid-template-columns: 1fr; }
   .mail { font-size: 14px; padding: 0 18px 18px; }
   .kicker { bottom: 3vh; }
@@ -327,3 +327,8 @@ body.still .ring, body.still .halo, body.still .wires path.glow, body.still .scr
 
 /* the switch, in the story's colours */
 .theme-toggle { --tt-line: var(--line-2); --tt-bg: transparent; --tt-ink: var(--ink-2); --tt-knob: var(--line-2); --tt-active: var(--green); }
+.view-switch { --tt-line: var(--line-2); --tt-bg: rgba(255, 255, 255, 0.03); --tt-ink: var(--ink-2); --tt-active: var(--green); --vs-on: #04241b; }
+:root[data-theme="light"] .view-switch { --tt-bg: #fff; --vs-on: #fff; }
+.snapshot-note { display: inline-block; margin: 18px auto 0; padding: 7px 14px; border-radius: 999px; font-size: 13px;
+  color: var(--ink-2); border: 1px dashed var(--line-2); opacity: 0; animation: lineIn 1s 0.9s ease forwards; max-width: 680px; }
+.snapshot-note[hidden] { display: none; }

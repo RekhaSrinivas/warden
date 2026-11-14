@@ -131,10 +131,14 @@ def test_airwallex_transfer_card_decline_and_freeze():
 
     rail = airwallex_rail(handler)
     p = w.invoice("Acme Office Supply", "420", "INV-1001", "req_inv_1001")
+    from warden.rails.airwallex import airwallex_request_id
     assert rail.execute(p) == {"rail": "airwallex", "transfer_id": "tr_1", "status": "SCHEDULED",
-                               "request_id": "req_inv_1001"}
+                               "request_id": "req_inv_1001", "airwallex_request_id": airwallex_request_id("req_inv_1001")}
     transfer_body = seen[1][1]
-    assert transfer_body["request_id"] == "req_inv_1001" and transfer_body["beneficiary_id"] == "ben_acme"
+    from warden.rails.airwallex import airwallex_request_id
+    assert transfer_body["request_id"] == airwallex_request_id("req_inv_1001") and transfer_body["beneficiary_id"] == "ben_acme"
+    assert airwallex_request_id("procurement-bot:invoice:invoice:INV-1001:ben_new_120044") ==         airwallex_request_id("procurement-bot:invoice:invoice:INV-1001:ben_new_120044")  # stable, so retries dedupe
+    assert len(airwallex_request_id("x" * 200)) == 36
 
     with pytest.raises(RailDeclined) as declined:
         rail.execute(w.gift_card())

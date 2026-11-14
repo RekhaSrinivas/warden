@@ -33,6 +33,12 @@ const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const feed = state.feed || [];
 const landed = (i) => i.decision?.action === "ALLOW" && !!i.decision.execution && !/DECLINED|ERROR|NO_RAIL/.test(i.decision.execution.status || "");
 
+if (state.snapshot) {  // offline with nothing run yet: the server sent the published live run instead
+  const note = $("snapshot-note");
+  note.hidden = false;
+  note.textContent = `Replaying the published live run of ${state.snapshot}. Everything below happened on the real rails; your offline console starts fresh.`;
+}
+
 // --- scroll engine ---------------------------------------------------------------------
 const scenes = [...document.querySelectorAll(".scene")];
 const handlers = {};

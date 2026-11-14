@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from decimal import Decimal
 from typing import Any, Mapping
 
@@ -16,6 +17,12 @@ import httpx
 
 from warden.models import Proposal
 from warden.rails.base import RailDeclined, RailError
+
+
+def airwallex_request_id(request_id: str) -> str:
+    """Airwallex wants a short id; Warden's (e.g. 'procurement-bot:invoice:invoice:INV-1001') can be long.
+    A UUID derived from it keeps Airwallex's own idempotency: the same request always maps to the same id."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"warden:{request_id}"))
 
 
 class AirwallexError(Exception):
@@ -134,7 +141,7 @@ class AirwallexRail:
     def _transfer(self, p: Proposal) -> dict[str, Any]:
         try:
             data = self.client.post("/api/v1/transfers/create", {
-                "request_id": p.request_id,  # Airwallex refuses a reused request_id for 7 days
+                "request_id": airwallex_request_id(p.request_id),  # Airwallex refuses a reused one for 7 days
                 "beneficiary_id": self.payees.get(p.payee_id, p.payee_id),
                 "transfer_amount": str(p.amount),
                 "transfer_currency": p.currency,
@@ -152,7 +159,8 @@ class AirwallexRail:
                 status = self.simulation.transfer_transition(data["id"], "PAID").get("status", status)
             except AirwallexError as e:
                 raise RailError(f"Transfer {data['id']} created but not settled: {e.summary()}") from None
-        return {"rail": self.name, "transfer_id": data["id"], "status": status, "request_id": p.request_id}
+        return {"rail": self.name, "transfer_id": data["id"], "status": status, "request_id": p.request_id,
+                "airwallex_request_id": airwallex_request_id(p.request_id)}
 
     def _card_purchase(self, p: Proposal) -> dict[str, Any]:
         card_id = self.agent_cards.get(p.agent_id)

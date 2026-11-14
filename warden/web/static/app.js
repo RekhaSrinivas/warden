@@ -20,6 +20,7 @@ const LOCK_ICON = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height
 
 let state = JSON.parse($("initial-state").textContent);
 const fireArmed = {}; // agent id -> time until which the second click fires
+const tamperNotes = {}; // proposal id -> what happened when the agent tried to change it
 
 // --- helpers ------------------------------------------------------------------
 
@@ -368,7 +369,7 @@ function inboxItem(item) {
         <button class="btn btn-deny" data-act="deny">Deny</button>
         <button class="btn btn-ghost btn-sm" data-act="tamper">Agent changes amount +$1</button>
       </div>
-      <div class="tamper-result" hidden></div>
+      <div class="tamper-result" ${tamperNotes[p.id] ? "" : "hidden"}>${esc(tamperNotes[p.id] || "")}</div>
     </div>`;
 }
 
@@ -438,11 +439,14 @@ $("inbox").addEventListener("click", async (event) => {
     toast(data.action === "CONTAIN" ? "Denied. Second strike: agent shut down on every rail." : "Denied. Strike recorded against the agent.");
   } else {
     const { data } = await api("/api/tamper", { proposal_id: id });
+    // Kept by proposal id: the refusal is logged, the page redraws, and the note must survive that.
+    tamperNotes[id] = data.refused
+      ? `Refused: the agent tried to run it as ${money(data.tried_amount)}, but the approval hash no longer matches. Nothing was paid.`
+      : data.detail || "Unexpected result";
+    toast(`<b>Changed approval refused.</b><br>${esc(tamperNotes[id])}`, 6000);
     const out = item.querySelector(".tamper-result");
     out.hidden = false;
-    out.textContent = data.refused
-      ? `Refused: the agent tried to run it as ${money(data.tried_amount)}, but the approval hash no longer matches.`
-      : data.detail || "Unexpected result";
+    out.textContent = tamperNotes[id];
     btn.disabled = false;
     return;
   }
@@ -559,7 +563,10 @@ function renderLocks() {
 }
 
 $("btn-locks").addEventListener("click", async (event) => {
-  await busy(event.currentTarget, "Testing…", () => api("/api/locks", {}));
+  await busy(event.currentTarget, "Testing…", async () => {
+    const { ok, data } = await api("/api/locks", {});
+    if (!ok) toast(esc(data.detail || "Could not test the locks"), 6000);
+  });
   refresh();
 });
 

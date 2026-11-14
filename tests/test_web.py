@@ -160,3 +160,48 @@ def test_money_protected_counts_each_payment_once_by_its_final_outcome():
     assert m["stopped"] == {"amount": "1200", "count": 1}
     assert Decimal(m["declined_live"]["amount"]) == 180 and m["declined_live"]["count"] == 1
     assert Decimal(m["protected"]) == 1800
+
+
+def test_normal_day_never_pays_twice_and_a_hired_agent_gets_its_own(tmp_path):
+    client, warden = make_client(tmp_path)
+    first = client.post("/api/normal-day", json={"agent_id": w.PROCUREMENT}).json()["actions"]
+    again = client.post("/api/normal-day", json={"agent_id": w.PROCUREMENT}).json()["actions"]
+    assert first == ["ALLOW", "ALLOW", "ALLOW"] and again == ["BLOCK", "BLOCK", "BLOCK"]  # retries absorbed
+    assert not warden.trust.strikes(w.PROCUREMENT, warden.clock())  # a retry is not the agent's fault
+    instruction = "Book flights and hotels for the sales team, max $400 per purchase and $1,500 a week, USD only. Anything over $300 needs me."
+    d = client.post("/api/hire/draft", json={"agent_id": "travel-bot", "role": "Sales", "instruction": instruction}).json()
+    assert client.post("/api/hire/confirm", json={"agent_id": "travel-bot", "mandate_id": d["mandate"]["mandate_id"]}).status_code == 200
+    assert client.post("/api/normal-day", json={"agent_id": "travel-bot"}).json()["actions"] == ["ALLOW", "ALLOW"]
+
+
+def test_the_verify_page_is_never_behind_the_console_or_a_reset(tmp_path):
+    client, _ = make_client(tmp_path)
+    client.post("/api/normal-day", json={"agent_id": w.PROCUREMENT})
+    page = client.get("/verify").text  # opened before the console refreshed
+    receipt_id = page.split("/verify/rcpt_", 1)[1].split('"', 1)[0]
+    assert client.get(f"/verify/rcpt_{receipt_id}").status_code == 200
+
+
+def test_the_attack_button_tells_the_story_in_order(tmp_path):
+    client, warden = make_client(tmp_path)
+    actions = [client.post("/api/attack", json={"agent_id": w.PROCUREMENT}).json() for _ in range(3)]
+    assert [a["action"] for a in actions] == ["STEP_UP", "BLOCK", "CONTAIN"]  # inbox, strike one, fired
+    assert actions[0]["scenario"].startswith("Lookalike") and actions[1]["scenario"].startswith("Fake 'bank")
+    assert warden.trust.is_contained(w.PROCUREMENT)
+
+
+def test_offline_story_replays_the_published_live_run_until_something_happens(tmp_path):
+    client, _ = make_client(tmp_path)
+    fresh = client.get("/").text
+    assert '"snapshot": "2026-11-13"' in fresh and '"mode": "live"' in fresh  # the real run, labelled
+    client.post("/api/normal-day", json={"agent_id": w.PROCUREMENT})
+    assert '"snapshot"' not in client.get("/").text  # once the visitor runs something, it is their book
+
+
+def test_locks_are_tested_only_after_the_agent_is_fired_and_then_all_hold(tmp_path):
+    client, _ = make_client(tmp_path)
+    early = client.post("/api/locks")
+    assert early.status_code == 409 and "Fire procurement-bot first" in early.json()["detail"]
+    client.post("/api/fire", json={"agent_id": w.PROCUREMENT})
+    results = client.post("/api/locks").json()["results"]
+    assert len(results) == 4 and all(r["held"] for r in results)
