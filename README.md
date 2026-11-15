@@ -177,7 +177,7 @@ The same attacks and honest payments, scored against five designs ([`warden/lab.
 | B3 Warden + heuristic risk reader | **0** | 30 | **0** |
 | B4 Warden + Claude reading the evidence | **0** | 30 | **0** |
 
-Code does the bulk of the work, as the design rules say it should. The risk reader catches what breaks no rule: a
+Code does the bulk of the work, as [Warden's design rules](#four-design-rules) say it should. The risk reader catches what breaks no rule: a
 lookalike sender on an approved vendor's invoice, an instruction hidden in an invoice PDF. On these sets the
 heuristic and Claude readers scored the same. B1 is modelled from each rail's documented controls, set to the agent's
 own mandate; bank transfers by API have no per-payment check, which is why it lets most attacks through.
@@ -227,16 +227,18 @@ the dispute won.
 **Locks.** Warden is not the only lock. The card's own controls, the on-chain mandate and Airi's passkey all
 refuse on their own, so even a compromised Warden can't spend outside the mandate.
 
-### Matches Airwallex's reference design rules
+### Four design rules
 
-Airwallex's AWS reference builds set four rules for agentic banking. Warden follows each one:
+Warden is built on four rules that keep an AI model away from the money:
 
-| Rule | In Warden |
+| Rule | How Warden keeps it |
 |---|---|
-| *The model reads and proposes* | Claude drafts mandates and reads evidence. It never moves money. |
-| *Code decides* | The mandate check and decision engine are deterministic code ([`mandate.py`](warden/mandate.py), [`engine.py`](warden/engine.py)). |
-| *A person approves* | Anything new, unusual or unbacked by an approved record goes to a human, who approves a hash-locked proposal. |
-| *Only one path writes* | Only the engine calls the rails. Agents get Warden's six MCP tools and a token, never the Airwallex credential, which closes the prompt-injection-to-money path the reference warns about. |
+| **The model reads and proposes** | Claude drafts mandates and reads evidence. It never moves money. |
+| **Code decides** | The mandate check and decision engine are deterministic code ([`mandate.py`](warden/mandate.py), [`engine.py`](warden/engine.py)). |
+| **A person approves** | Anything new, unusual or not backed by an approved record goes to a human, who approves a hash-locked proposal. |
+| **Only one path writes** | Only the engine calls the rails. Agents get Warden's six MCP tools and a token, never the Airwallex credential, so a prompt-injected agent has no path to the money. |
+
+These are the same principles Airwallex sets out in its AWS reference builds for agentic banking.
 
 ---
 
