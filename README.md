@@ -6,7 +6,7 @@
 
 ![Warden blocks a $1,200 payment to a lookalike vendor's "new bank account": code finds the rule breaks, Claude reads the evidence](docs/images/decide.jpg)
 
-**🎬 Demo video (4:45):** <!--VIDEO-->_link added at submission_<!--/VIDEO-->  ·  **📄 [Technical report](docs/paper/warden-report.pdf)**  ·  **🔎 [Live-run evidence](docs/live-runs/)**
+**🌐 [Live site: Story + Lab](https://rekhasrinivas.github.io/warden/)**  ·  **🎬 Demo video (4:47):** <!--VIDEO-->_link added at submission_<!--/VIDEO-->  ·  **📄 [Technical report](docs/paper/warden-report.pdf)**  ·  **🔎 [Live-run evidence](docs/live-runs/)**
 
 Every payment an agent wants to make goes through Warden first. Code checks it against the mandate a human set,
 Claude reads the evidence behind it for fraud, and Warden decides: **pay it**, **hold it for a human**, **block it**,
