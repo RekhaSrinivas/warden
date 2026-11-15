@@ -6,7 +6,7 @@
 
 ![Warden blocks a $1,200 payment to a lookalike vendor's "new bank account": code finds the rule breaks, Claude reads the evidence](docs/images/decide.jpg)
 
-**🌐 [Live site: Story + Lab](https://rekhasrinivas.github.io/warden/)**  ·  **🎬 Demo video (4:47):** <!--VIDEO-->_link added at submission_<!--/VIDEO-->  ·  **📄 [Technical report](docs/paper/warden-report.pdf)**  ·  **🔎 [Live-run evidence](docs/live-runs/)**
+**🌐 [Live site: Story + Lab](https://rekhasrinivas.github.io/warden/)**  ·  **🎬 Demo video (4:47):** [youtu.be/Z3BS2_dZoSI](https://youtu.be/Z3BS2_dZoSI)  ·  **📄 [Technical report](docs/paper/warden-report.pdf)**  ·  **🔎 [Live-run evidence](docs/live-runs/)**
 
 Every payment an agent wants to make goes through Warden first. Code checks it against the mandate a human set,
 Claude reads the evidence behind it for fraud, and Warden decides: **pay it**, **hold it for a human**, **block it**,
@@ -32,7 +32,7 @@ Claude drafts the mandate, code clamps it to company policy, and Airwallex issue
 
 ## Judges' two-minute tour
 
-1. **Watch** the demo video above (4:45), or skim the screenshots below.
+1. **Watch** the [demo video](https://youtu.be/Z3BS2_dZoSI) (4:47), or skim the screenshots below.
 2. **See it was live:** the [13 Nov run](#proven-live) table lists real Airwallex transfer and card ids, the Airi
    VIC mandate and Alta transactions with explorer links; the [14 Nov run](docs/live-runs/2026-11-14-remote-auth/)
    shows Airwallex asking Warden before each card charge.
