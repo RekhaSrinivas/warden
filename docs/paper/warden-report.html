@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="author" content="Rekha Srinivas">
+<meta name="author" content="Rekha Srinivas Chimpiri">
 <title>Warden: Enforceable, Revocable, Verifiable Mandates for AI Payment Agents</title>
 <style>
 @page { size: A4; margin: 15mm 16mm 16mm 16mm;
@@ -50,7 +50,7 @@ p.closing { text-align: center; font-style: italic; margin-top: 4mm; }
 </style>
 </head>
 <body>
-<header class="title"><div class="kind">Technical report, version 1</div><h1>Warden: Enforceable, Revocable, Verifiable Mandates for AI Payment Agents</h1><div class="subtitle">A financial control plane for AI agents</div><div class="author">Rekha Srinivas</div><div class="date">14 November 2026</div></header>
+<header class="title"><div class="kind">Technical report, version 1</div><h1>Warden: Enforceable, Revocable, Verifiable Mandates for AI Payment Agents</h1><div class="subtitle">A financial control plane for AI agents</div><div class="author">Rekha Srinivas Chimpiri</div><div class="date">14 November 2026</div></header>
 <section id="abstract" class="abstract">
 <h2 id="abstract">Abstract</h2>
 <p>AI agents can now hold payment credentials. An agent that reads an attacker's email can be talked into paying the attacker. Warden is a control plane that sits between agents and money. Every payment an agent wants to make goes through Warden first. Deterministic code checks it against a mandate a human set. Claude reads the evidence as an advisor: it can flag a payment and send it to a human, but it can never approve one. Warden then decides ALLOW, STEP_UP (hold for a human), BLOCK, or CONTAIN (suspend the agent on every rail). Each final decision becomes an Ed25519-signed, hash-chained Intent Receipt that anyone can check with the public key alone. Card charges are authorized in real time only if a matching Warden approval exists ("no Intent Receipt, no authorization"). Charges that bypass Warden are found by reconciliation and disputed.</p>

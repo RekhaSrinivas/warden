@@ -10,7 +10,7 @@
 
 Every payment an agent wants to make goes through Warden first. Code checks it against the mandate a human set,
 Claude reads the evidence behind it for fraud, and Warden decides: **pay it**, **hold it for a human**, **block it**,
-or **fire the agent on every rail at once**. Each decision leaves an Ed25519-signed, hash-chained receipt that
+or **fire the agent on every rail at once**, and says why in plain words. Each decision leaves an Ed25519-signed, hash-chained receipt that
 anyone can verify. Card charges that bypass Warden are caught live by Airwallex remote authorization, or later by
 reconciliation, and disputed.
 
@@ -30,7 +30,7 @@ Built solo for the Airwallex Agentic Banking Hackathon.
 You hire an agent in plain English ("book flights and hotels, $400 a purchase, anything over $300 needs me"),
 Claude drafts the mandate, code clamps it to company policy, and Airwallex issues the agent its own card.
 
-## Judges' two-minute tour
+## Quick tour
 
 1. **Watch** the [demo video](https://youtu.be/Z3BS2_dZoSI) (4:47), or skim the screenshots below.
 2. **See it was live:** the [13 Nov run](#proven-live) table lists real Airwallex transfer and card ids, the Airi
@@ -42,23 +42,23 @@ Claude drafts the mandate, code clamps it to company policy, and Airwallex issue
    `python -m warden.receipts verify docs/live-runs/2026-11-13/receipts.jsonl docs/live-runs/2026-11-13/receipt-public-key.pem`
 5. **Run it** in five minutes with no keys: [Try it](#try-it-in-5-minutes-no-keys).
 
-## Evidence by prize
+## Proof on each rail
 
-| Prize | What Warden does there | Proof |
+| Rail | What Warden does there | Proof |
 |---|---|---|
-| **Airwallex (Founder's / Judges' Choice)** | Bank transfers to approved vendors; a virtual card per agent with the mandate set on the card; **Issuing remote authorization** (Airwallex asks Warden before every card charge: no Intent Receipt, no authorization); disputes for charges made outside Warden | Transfers `79511da5…`, `fee8c957…`, `53932098…` PAID; card charge `01a1d7d6…` CLEARED; `REMOTE_AUTH_DECLINED` event `01a1db59-f739…`; dispute `b0fe9ca6…` SUBMITTED |
-| **Visa Award** | Agent checkout with a **Visa Intelligent Commerce** credential **via Airi**, confirmed by the human's passkey; a checkout nobody confirms is refused | Airi mandate `mdt_uspd95pgtho528119dl` SUCCEEDED, VIC DPAN, order `OC-1794622753`, receipt `rcpt_be5ebf277f6c38c2`; `NO_PASSKEY` lock |
-| **Alta Award** | x402 pay-per-call under an **on-chain mandate**; firing an agent **revokes the mandate on chain**; every Alta receipt is re-verified on chain (4/4 checks) | [0x13773d3a…](https://testnet.metalntwx.com/tx/0x13773d3af515e2bbba52312f7dcbf2d44fe2e45f1754d12b38055e4481da86e6), [0x2b47f931…](https://testnet.metalntwx.com/tx/0x2b47f931a395310c241538533917c7ef84a4c8c49dd176e2c16faca3db2b90dd); revoke [0xc9e0edf5…](https://testnet.metalntwx.com/tx/0xc9e0edf5835575f694bc19c50a0d6f198f6f4f13f860347b26620ea0ca947fdf) |
+| **Airwallex** | Bank transfers to approved vendors; a virtual card per agent with the mandate set on the card; **Issuing remote authorization** (Airwallex asks Warden before every card charge: no Intent Receipt, no authorization); disputes for charges made outside Warden | Transfers `79511da5…`, `fee8c957…`, `53932098…` PAID; card charge `01a1d7d6…` CLEARED; `REMOTE_AUTH_DECLINED` event `01a1db59-f739…`; dispute `b0fe9ca6…` SUBMITTED |
+| **Visa Intelligent Commerce (via Airi)** | Agent checkout with a **Visa Intelligent Commerce** credential **via Airi**, confirmed by the human's passkey; a checkout nobody confirms is refused | Airi mandate `mdt_uspd95pgtho528119dl` SUCCEEDED, VIC DPAN, order `OC-1794622753`, receipt `rcpt_be5ebf277f6c38c2`; `NO_PASSKEY` lock |
+| **Alta** | x402 pay-per-call under an **on-chain mandate**; firing an agent **revokes the mandate on chain**; every Alta receipt is re-verified on chain (4/4 checks) | [0x13773d3a…](https://testnet.metalntwx.com/tx/0x13773d3af515e2bbba52312f7dcbf2d44fe2e45f1754d12b38055e4481da86e6), [0x2b47f931…](https://testnet.metalntwx.com/tx/0x2b47f931a395310c241538533917c7ef84a4c8c49dd176e2c16faca3db2b90dd); revoke [0xc9e0edf5…](https://testnet.metalntwx.com/tx/0xc9e0edf5835575f694bc19c50a0d6f198f6f4f13f860347b26620ea0ca947fdf) |
 
 ## Screenshots
 
 | | |
 |---|---|
-| ![The live console: sidebar, money flow and the decision replay](docs/images/console.jpg) **Console:** every payment flows through Warden; the replay steps through each decision | ![Decisions: allowed, held, blocked or the agent fired, with Claude's reading](docs/images/guard.jpg) **Guard it:** each decision with its rule codes and Claude's reading of the evidence |
+| ![The live console: sidebar, money flow and the decision replay](docs/images/console.jpg) **Console:** every payment flows through Warden; the replay steps through each decision | ![Decisions: allowed, held, blocked or the agent fired, with Claude's reading](docs/images/guard.jpg) **Guard it:** each decision explained in plain words, with its rule codes and Claude's reading of the evidence |
 | ![The Lab: which defence stops which attack](docs/images/lab.jpg) **Lab:** the same 46 attacks against five designs | ![A receipt verified, including on chain](docs/images/verify.jpg) **Verify:** any receipt checked without trusting Warden, Alta payments on chain |
 
 **Read more:** the [technical report (PDF, 9 pages)](docs/paper/warden-report.pdf) with every number and what we
-don't claim · the Lab (`/lab`): which defence stops which attack, measured.
+don't claim · the [Lab](https://rekhasrinivas.github.io/warden/lab.html): which defence stops which attack, measured.
 
 ---
 

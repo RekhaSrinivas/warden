@@ -1,7 +1,7 @@
 ---
 title: "Warden: Enforceable, Revocable, Verifiable Mandates for AI Payment Agents"
 subtitle: A financial control plane for AI agents
-author: Rekha Srinivas
+author: Rekha Srinivas Chimpiri
 date: 14 November 2026
 kind: Technical report, version 1
 ---
