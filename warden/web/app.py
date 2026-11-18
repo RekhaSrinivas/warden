@@ -506,6 +506,11 @@ TYPICAL_PURCHASE: dict[str, tuple[str, str, Decimal]] = {
 }
 
 
+BIG_PURCHASE: dict[str, str] = {
+    "7011": "Hotel, five nights for the sales kickoff",
+}  # preferred first; any other category falls back to a larger order of its usual purchase
+
+
 def normal_day(agent_id: str, mandate: Mandate | None = None) -> list[Proposal]:
     """Each agent's ordinary work. Approved bills carry a stable request id, so pressing the button
     twice is a retry Warden absorbs ("never pays twice"), not a second payment."""
@@ -530,7 +535,19 @@ def normal_day(agent_id: str, mandate: Mandate | None = None) -> list[Proposal]:
             description=what, request_id=f"req_day_{agent_id}_{mcc}",
             evidence=(Evidence(f"purchase_request:{agent_id}-{mcc}", True, f"Team lead approved: {what.lower()}."),),
             agent_reasoning=f"{what}, approved by the team lead and inside my mandate."))
-    return day[:3]
+    day = day[:3]
+    # One bigger purchase above the "needs me" line, so an ordinary day also shows a human approving.
+    limit = mandate.approval_threshold
+    if day and limit is not None and limit < mandate.per_txn_cap:
+        base = next((p for mcc in BIG_PURCHASE for p in day if p.merchant_category == mcc), day[-1])
+        what = BIG_PURCHASE.get(base.merchant_category, f"Larger order: {base.description.lower()}")
+        day.append(replace(
+            base, amount=(limit + (mandate.per_txn_cap - limit) / 2).quantize(Decimal("1")), description=what,
+            request_id=base.request_id + "_big",
+            evidence=(Evidence(f"purchase_request:{agent_id}-{base.merchant_category}-big", True,
+                               f"Team lead asked for it: {what.lower()}."),),
+            agent_reasoning=f"{what}. It is over my approval line, so a human has to approve it."))
+    return day
 
 
 def published_live_view() -> dict[str, Any] | None:

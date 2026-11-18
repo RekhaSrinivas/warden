@@ -174,7 +174,10 @@ def test_normal_day_never_pays_twice_and_a_hired_agent_gets_its_own(tmp_path):
     instruction = "Book flights and hotels for the sales team, max $400 per purchase and $1,500 a week, USD only. Anything over $300 needs me."
     d = client.post("/api/hire/draft", json={"agent_id": "travel-bot", "role": "Sales", "instruction": instruction}).json()
     assert client.post("/api/hire/confirm", json={"agent_id": "travel-bot", "mandate_id": d["mandate"]["mandate_id"]}).status_code == 200
-    assert client.post("/api/normal-day", json={"agent_id": "travel-bot"}).json()["actions"] == ["ALLOW", "ALLOW"]
+    # Two everyday bookings pay; the bigger one ($350, over "anything over $300 needs me") waits for a human.
+    assert client.post("/api/normal-day", json={"agent_id": "travel-bot"}).json()["actions"] == ["ALLOW", "ALLOW", "STEP_UP"]
+    held = [p for p in warden.pending.values() if p.agent_id == "travel-bot"]
+    assert len(held) == 1 and held[0].amount == 350 and held[0].payee_name == "Marriott"
 
 
 def test_the_verify_page_is_never_behind_the_console_or_a_reset(tmp_path):

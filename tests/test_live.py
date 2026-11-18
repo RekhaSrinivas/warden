@@ -1,5 +1,6 @@
 """Live wiring without the network: card controls, payee mapping, settlement, and the offline story."""
 
+from dataclasses import replace
 from typing import Any
 
 from warden import demo, demo_world as w, live
@@ -12,6 +13,24 @@ def test_card_controls_mirror_the_mandate():
     assert w.MCC_GIFT_SHOP not in controls["allowed_merchant_categories"]
     limits = {l["interval"]: l["amount"] for l in controls["transaction_limits"]["limits"]}
     assert limits == {"PER_TRANSACTION": 500.0, "WEEKLY": 2000.0}
+
+
+def test_each_card_is_named_after_its_agent_in_the_airwallex_dashboard():
+    class CardClient:
+        posts: list[tuple[str, dict[str, Any]]] = []
+
+        def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+            self.posts.append((path, body))
+            return {"cardholder_id": "ch_1"} if "cardholders" in path else {"card_id": "card_1"}
+
+        def get(self, path: str) -> dict[str, Any]:
+            return {"card_status": "ACTIVE"}
+
+    client = CardClient()
+    card_only = replace(w.demo_mandate(), payee_allowlist=frozenset())  # no Alta mandate to bind
+    ids = live.LiveProvisioner(client, None, {}).provision("travel-bot", card_only)
+    card = dict(client.posts)["/api/v1/issuing/cards/create"]
+    assert ids["card_id"] == "card_1" and card["nick_name"] == "Warden · travel-bot"
 
 
 def test_us_ach_beneficiary_has_the_required_account_category():

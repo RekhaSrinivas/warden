@@ -169,6 +169,7 @@ class LiveProvisioner:
             ids["cardholder_id"] = data["cardholder_id"]
             data = self.client.post("/api/v1/issuing/cards/create", {
                 "request_id": str(uuid.uuid4()), "cardholder_id": ids["cardholder_id"], "created_by": "Warden",
+                "nick_name": card_name(agent_id),  # so the Airwallex dashboard shows whose card it is
                 "form_factor": "VIRTUAL", "is_personalized": False, "program": {"purpose": "COMMERCIAL"},
                 "authorization_controls": card_controls(mandate),
             })
@@ -191,6 +192,11 @@ class LiveProvisioner:
         return {"metal_credential": str(credential.relative_to(ROOT)).replace("\\", "/"),
                 "metal_mandate_id": mandate_id, "metal_cap_usdz": cap, "metal_budget_usdz": budget,
                 "metal_bind_tx": _TX.search(bound).group(1), "metal_bind_explorer": _EXPLORER.search(bound).group(1)}
+
+
+def card_name(agent_id: str) -> str:
+    """The card's name in the Airwallex dashboard, e.g. "Warden · travel-bot"."""
+    return f"Warden · {agent_id}"
 
 
 def card_controls(mandate: Mandate) -> dict[str, Any]:
